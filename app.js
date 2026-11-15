@@ -60,7 +60,7 @@ if (window.top !== window.self) { document.documentElement.hidden = true; throw 
   // ---------- sign in / first-time setup ----------
   function showAuth(setup) {
     setupMode = setup;
-    $("authTitle").textContent = setup ? "הגדרה ראשונית" : "יומן תיקוני דירות";
+    $("authTitle").textContent = setup ? "הגדרה ראשונית" : "מחלקת בדק";
     $("authSub").textContent = setup ? "יוצרים את חשבון המנהל הראשון. אחר כך תוכלו להוסיף את שאר הצוות מתוך המערכת." : "כניסה לצוות החברה.";
     $("authNameWrap").hidden = !setup;
     $("a_pass").setAttribute("autocomplete", setup ? "new-password" : "current-password");
@@ -426,7 +426,7 @@ if (window.top !== window.self) { document.documentElement.hidden = true; throw 
     var wb = XLSX.utils.book_new();
     wb.Workbook = { Views: [{ RTL: true }] };
     XLSX.utils.book_append_sheet(wb, ws, "קריאות");
-    XLSX.writeFile(wb, "repairs-" + today() + ".xlsx");
+    XLSX.writeFile(wb, "bedek-" + today() + ".xlsx");
   });
 
   // ---------- users (admin) ----------

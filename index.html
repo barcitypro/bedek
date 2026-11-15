@@ -3,142 +3,22 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob: https://kvdhdxcbxvmjnaezbtwx.supabase.co; connect-src https://kvdhdxcbxvmjnaezbtwx.supabase.co wss://kvdhdxcbxvmjnaezbtwx.supabase.co; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob: https://kvdhdxcbxvmjnaezbtwx.supabase.co; connect-src https://kvdhdxcbxvmjnaezbtwx.supabase.co wss://kvdhdxcbxvmjnaezbtwx.supabase.co; base-uri 'none'; form-action 'none'; object-src 'none'">
 <meta name="referrer" content="no-referrer">
 <meta name="robots" content="noindex, nofollow">
-<title>יומן תיקוני דירות</title>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;700&family=Rubik:wght@500;700&display=swap">
-<style>
-:root {
-  --bg: #f3f5f8; --surface: #ffffff; --fg: #17212e; --muted: #5b6878; --line: #d6dce5;
-  --accent: #1f5fa8; --accent-fg: #ffffff;
-  --open-bg: #fde8e4; --open-fg: #9a2a17;
-  --prog-bg: #fdf0cf; --prog-fg: #7a5200;
-  --done-bg: #dff3e3; --done-fg: #1c6b33;
-  --danger: #b3261e;
-  --font-body: "Heebo", "Segoe UI", Arial, sans-serif;
-  --font-head: "Rubik", "Heebo", "Segoe UI", Arial, sans-serif;
-  --radius: 8px;
-}
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #111822; --surface: #1a2330; --fg: #e8edf4; --muted: #9aa8ba; --line: #2f3b4c;
-    --accent: #6fa8e8; --accent-fg: #0d1722;
-    --open-bg: #4a1f18; --open-fg: #ffb4a6;
-    --prog-bg: #45350d; --prog-fg: #f5d27a;
-    --done-bg: #173a22; --done-fg: #9fe0b0;
-    --danger: #ff8a80; color-scheme: dark;
-  }
-}
-* { box-sizing: border-box; }
-[hidden] { display: none !important; }
-body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 15px; line-height: 1.5; }
-.wrap { max-width: 1080px; margin: 0 auto; padding: 24px 16px 48px; display: flex; flex-direction: column; gap: 16px; }
-h1 { font-family: var(--font-head); font-size: 26px; font-weight: 700; margin: 0; text-wrap: balance; }
-h2 { font-family: var(--font-head); font-size: 20px; margin: 0; }
-.top { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; }
-.sub { color: var(--muted); margin: 2px 0 0; font-size: 14px; }
-button, input, select, textarea { font: inherit; color: inherit; }
-.btn { border: 1px solid var(--line); background: var(--surface); border-radius: var(--radius); padding: 8px 14px; cursor: pointer; font-weight: 500; }
-.btn:hover { border-color: var(--accent); }
-.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); }
-.btn.danger { color: var(--danger); }
-.btn.small { padding: 4px 10px; font-size: 13px; }
-.btn:disabled { opacity: .55; cursor: default; }
-:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
-
-.card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 24px; max-width: 420px; margin: 8vh auto 0; display: flex; flex-direction: column; gap: 14px; }
-.center { text-align: center; color: var(--muted); padding: 20vh 0; }
-
-.counts { display: flex; gap: 8px; flex-wrap: wrap; }
-.count { border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 5px 14px; cursor: pointer; display: flex; gap: 8px; align-items: baseline; }
-.count b { font-family: var(--font-head); font-variant-numeric: tabular-nums; }
-.count[aria-pressed="true"] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
-
-.filters { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr) auto; gap: 8px; align-items: end; }
-@media (max-width: 720px) { .filters { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } .filters .wide { grid-column: 1 / -1; } }
-input[type="text"], input[type="search"], input[type="date"], input[type="email"], input[type="password"], select, textarea {
-  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 8px 10px; width: 100%;
-}
-textarea { resize: vertical; min-height: 64px; }
-label.f { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted); font-weight: 500; min-width: 0; }
-label.f > * { color: var(--fg); font-weight: 400; font-size: 15px; }
-label.check { display: flex; gap: 8px; align-items: center; }
-label.check input { width: 18px; height: 18px; }
-
-.list { display: flex; flex-direction: column; gap: 8px; }
-.row { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px; display: grid; gap: 4px 16px; align-items: center; cursor: pointer;
-  grid-template-columns: 92px minmax(0, 1.2fr) minmax(0, 2fr) auto auto; text-align: start; width: 100%; }
-.row:hover { border-color: var(--accent); }
-.row .date { font-variant-numeric: tabular-nums; color: var(--muted); }
-.row .where { font-weight: 700; min-width: 0; overflow-wrap: anywhere; }
-.row .where small { display: block; font-weight: 400; color: var(--muted); }
-.row .issue { min-width: 0; overflow-wrap: anywhere; }
-.row .meta { color: var(--muted); font-size: 13px; white-space: nowrap; }
-.pill { border-radius: 999px; padding: 2px 10px; font-size: 13px; font-weight: 500; white-space: nowrap; justify-self: start; }
-.pill.open { background: var(--open-bg); color: var(--open-fg); }
-.pill.progress { background: var(--prog-bg); color: var(--prog-fg); }
-.pill.done { background: var(--done-bg); color: var(--done-fg); }
-@media (max-width: 720px) {
-  .row { grid-template-columns: minmax(0, 1fr) auto; }
-  .row .date { order: 1; } .row .pill { order: 2; justify-self: end; }
-  .row .where, .row .issue { grid-column: 1 / -1; order: 3; }
-  .row .meta { grid-column: 1 / -1; order: 4; white-space: normal; }
-}
-.empty { border: 1px dashed var(--line); border-radius: var(--radius); padding: 32px 20px; text-align: center; color: var(--muted); }
-.empty strong { display: block; color: var(--fg); font-family: var(--font-head); font-size: 17px; margin-bottom: 4px; }
-.shown { color: var(--muted); font-size: 13px; }
-
-dialog { border: 1px solid var(--line); border-radius: 12px; background: var(--surface); color: var(--fg); padding: 0; width: min(640px, calc(100vw - 24px)); max-height: calc(100vh - 24px); }
-dialog::backdrop { background: rgba(10, 16, 24, .55); }
-dialog form, dialog .body { display: flex; flex-direction: column; gap: 14px; padding: 20px; }
-.grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
-.grid .full { grid-column: 1 / -1; }
-@media (max-width: 520px) { .grid { grid-template-columns: minmax(0, 1fr); } }
-.sec { font-family: var(--font-head); font-size: 15px; font-weight: 500; margin: 0; padding-top: 10px; border-top: 1px solid var(--line); }
-.sec.first { border-top: 0; padding-top: 0; }
-.photos { display: flex; flex-direction: column; gap: 6px; }
-.photos .title { font-size: 13px; color: var(--muted); font-weight: 500; }
-.thumbs { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
-.thumb { position: relative; width: 76px; height: 76px; border-radius: 6px; overflow: hidden; border: 1px solid var(--line); background: var(--bg); }
-.thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.thumb button { position: absolute; top: 2px; inset-inline-end: 2px; width: 22px; height: 22px; border-radius: 50%; border: 0; background: var(--surface); color: var(--fg); cursor: pointer; line-height: 1; font-size: 14px; }
-.addphoto { position: relative; border: 1px dashed var(--line); border-radius: 6px; width: 76px; height: 76px; display: grid; place-items: center; cursor: pointer; color: var(--muted); font-size: 13px; text-align: center; }
-.addphoto input { position: absolute; width: 1px; height: 1px; opacity: 0; }
-.addphoto:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
-.foot { display: flex; gap: 8px; flex-wrap: wrap; justify-content: space-between; align-items: center; }
-.err { color: var(--danger); font-size: 14px; }
-.ok { color: var(--done-fg); font-size: 14px; }
-.stamp { color: var(--muted); font-size: 13px; }
-.sig { display: flex; flex-direction: column; gap: 6px; }
-.sig .title { font-size: 13px; color: var(--muted); font-weight: 500; }
-.sig #sigNew, .sig #sigDone { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
-.sig #sigNew label { width: 100%; }
-#sigPad { width: 100%; height: 160px; border: 1px solid var(--line); border-radius: 6px; background: #fff; touch-action: none; display: block; cursor: crosshair; }
-#sigImg { max-width: 100%; height: 120px; background: #fff; border: 1px solid var(--line); border-radius: 6px; object-fit: contain; }
-.hist { border-top: 1px solid var(--line); padding-top: 10px; }
-.hist summary { cursor: pointer; font-weight: 500; }
-.hist .ev { padding: 8px 0; border-top: 1px solid var(--line); font-size: 14px; }
-.hist .ev:first-child { border-top: 0; }
-.hist .ev .hd { color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; }
-.hist .ev ul { margin: 2px 0 0; padding-inline-start: 18px; }
-.hist .ev li { overflow-wrap: anywhere; }
-.urow { display: grid; grid-template-columns: minmax(0, 1fr) 130px auto; gap: 8px; align-items: center; padding: 8px 0; border-top: 1px solid var(--line); }
-.urow:first-child { border-top: 0; }
-.urow .who { min-width: 0; overflow-wrap: anywhere; }
-.urow .who small { display: block; color: var(--muted); }
-.urow .pw { grid-column: 1 / -1; display: flex; gap: 8px; }
-@media (max-width: 520px) { .urow { grid-template-columns: minmax(0, 1fr) 110px; } .urow .rst { grid-column: 1 / -1; justify-self: start; } }
-</style>
+<title>מחלקת בדק סיטי פרוייקטים</title>
+<link rel="icon" type="image/png" href="icon.png">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Frank+Ruhl+Libre:wght@500;700&family=Heebo:wght@400;500;700&display=swap">
+<link rel="stylesheet" href="style.css">
 </head>
 <body>
 <div class="wrap">
-  <section id="scrLoading" class="center">טוען…</section>
+  <section id="scrLoading" class="center"><img class="logo-lg" src="logo.png" alt="סיטי פרוייקטים"><span>טוען…</span></section>
 
   <section id="scrAuth" hidden>
     <form class="card" id="authForm" novalidate>
-      <h1 id="authTitle">יומן תיקוני דירות</h1>
+      <img class="logo-lg" src="logo.png" alt="סיטי פרוייקטים">
+      <h1 id="authTitle">מחלקת בדק</h1>
       <p class="sub" id="authSub">כניסה לצוות החברה.</p>
       <label class="f" id="authNameWrap" hidden>שם מלא<input type="text" id="a_name" autocomplete="name"></label>
       <label class="f">אימייל<input type="email" id="a_email" autocomplete="username" required></label>
@@ -150,24 +30,32 @@ dialog form, dialog .body { display: flex; flex-direction: column; gap: 14px; pa
 
   <section id="scrBlocked" hidden>
     <div class="card">
-      <h2>אין לך גישה ליומן</h2>
+      <img class="logo-lg" src="logo.png" alt="סיטי פרוייקטים">
+      <h2>אין לך גישה למערכת</h2>
       <p class="sub">החשבון הזה לא מורשה לצפות בנתונים. פנו למנהל המערכת כדי לקבל גישה.</p>
       <button class="btn" type="button" id="blockedOut">יציאה</button>
     </div>
   </section>
 
-  <section id="scrMain" hidden style="display:flex;flex-direction:column;gap:16px">
-    <div class="top">
-      <div>
-        <h1>יומן תיקוני דירות</h1>
+  <section id="scrMain" hidden>
+    <header class="brand">
+      <img class="logo" src="logo.png" alt="סיטי פרוייקטים">
+      <div class="brand-text">
+        <h1>מחלקת בדק סיטי פרוייקטים</h1>
         <p class="sub" id="whoami"></p>
       </div>
+      <nav class="account" aria-label="חשבון">
+        <button class="link" id="usersBtn" type="button" hidden>משתמשים</button>
+        <button class="link" id="pwBtn" type="button">שינוי סיסמה</button>
+        <button class="link" id="outBtn" type="button">יציאה</button>
+      </nav>
+    </header>
+
+    <div class="toolbar">
+      <h2>קריאות שירות</h2>
       <div class="actions">
-        <button class="btn primary" id="newBtn" type="button">קריאה חדשה</button>
         <button class="btn" id="exportBtn" type="button">ייצוא לאקסל</button>
-        <button class="btn" id="usersBtn" type="button" hidden>משתמשים</button>
-        <button class="btn" id="pwBtn" type="button">שינוי סיסמה</button>
-        <button class="btn" id="outBtn" type="button">יציאה</button>
+        <button class="btn primary" id="newBtn" type="button">קריאה חדשה</button>
       </div>
     </div>
 
@@ -187,7 +75,7 @@ dialog form, dialog .body { display: flex; flex-direction: column; gap: 14px; pa
 
 <dialog id="dlg">
   <form id="frm" novalidate>
-    <h2 id="dlgTitle">קריאה חדשה</h2>
+    <div class="dhead"><img src="icon.png" alt=""><div><span class="dept">מחלקת בדק סיטי פרוייקטים</span><h2 id="dlgTitle">קריאה חדשה</h2></div></div>
     <div class="grid">
       <h3 class="sec first full">פתיחת הקריאה</h3>
       <label class="f">תאריך פתיחת הקריאה<input type="date" id="f_date" required></label>
@@ -244,9 +132,9 @@ dialog form, dialog .body { display: flex; flex-direction: column; gap: 14px; pa
 
 <dialog id="usersDlg">
   <div class="body">
-    <h2>משתמשים</h2>
+    <div class="dhead"><img src="icon.png" alt=""><div><span class="dept">מחלקת בדק סיטי פרוייקטים</span><h2>משתמשים</h2></div></div>
     <div id="usersList"></div>
-    <form id="newUserForm" novalidate style="padding:0">
+    <form id="newUserForm" novalidate>
       <h3 class="sec">הוספת משתמש</h3>
       <div class="grid">
         <label class="f">שם מלא<input type="text" id="u_name" autocomplete="off"></label>
@@ -266,7 +154,7 @@ dialog form, dialog .body { display: flex; flex-direction: column; gap: 14px; pa
 
 <dialog id="pwDlg">
   <form id="pwForm" novalidate>
-    <h2>שינוי סיסמה</h2>
+    <div class="dhead"><img src="icon.png" alt=""><div><span class="dept">מחלקת בדק סיטי פרוייקטים</span><h2>שינוי סיסמה</h2></div></div>
     <label class="f">סיסמה חדשה (8 תווים לפחות)<input type="password" id="p_new" autocomplete="new-password"></label>
     <div class="err" id="pwErr" hidden></div>
     <div class="ok" id="pwOk" hidden></div>

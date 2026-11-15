@@ -164,3 +164,28 @@ dialog form, dialog .body { display: flex; flex-direction: column; gap: 14px; pa
 .urow .who small { display: block; color: var(--ink-soft); font-weight: 400; }
 .urow .pw { grid-column: 1 / -1; display: flex; gap: 8px; }
 @media (max-width: 520px) { .urow { grid-template-columns: minmax(0, 1fr) 110px; } .urow .rst { grid-column: 1 / -1; justify-self: start; } }
+
+/* ---------- PDF report (rendered off-screen at A4 width; plain colors and no letter-spacing so it rasterizes cleanly) ---------- */
+.report { position: absolute; left: -10000px; top: 0; width: 794px; background: #fff; color: #25262b; font-family: var(--font-body); font-size: 15px; line-height: 1.55; }
+.rblock { padding: 5px 4px; background: #fff; }
+.rhead { display: flex; align-items: center; gap: 16px; padding-bottom: 12px; border-bottom: 3px solid #c39a35; }
+.rhead img { width: 98px; height: auto; flex: none; }
+.rtitle { flex: 1; min-width: 0; }
+.rname { font-family: var(--font-head); font-weight: 700; font-size: 25px; line-height: 1.2; }
+.rdoc { font-size: 16px; font-weight: 500; color: #7d5c14; }
+.rmeta { font-size: 12px; color: #565963; }
+.rgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 24px; }
+.rkv { display: flex; flex-direction: column; border-bottom: 1px solid #e2dfd6; padding-bottom: 4px; min-width: 0; }
+.rk { font-size: 12px; color: #565963; }
+.rv { font-weight: 500; overflow-wrap: anywhere; }
+.rsec { font-family: var(--font-body); font-size: 14px; font-weight: 700; color: #7d5c14; margin: 8px 0 6px; padding-top: 8px; border-top: 1px solid #e2dfd6; }
+.rtext { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.rphotos { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; align-items: start; }
+.rphotos img { width: 100%; height: auto; display: block; border: 1px solid #e2dfd6; }
+.rmissing { border: 1px dashed #cfc9b8; color: #565963; font-size: 13px; padding: 24px 8px; text-align: center; }
+.rsig { height: 110px; width: auto; display: block; border: 1px solid #e2dfd6; margin-bottom: 4px; }
+.rev { font-size: 13px; border-bottom: 1px solid #eee9db; padding-bottom: 4px; }
+.rhd { color: #565963; }
+.rev ul { margin: 2px 0 0; padding-inline-start: 18px; }
+
+.rgroup { background: #fff; }

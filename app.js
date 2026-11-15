@@ -303,18 +303,7 @@ if (window.top !== window.self) { document.documentElement.hidden = true; throw 
     var box = $("histList"); box.textContent = ""; $("hist").hidden = true; $("hist").open = false;
     sb.from("repairs_history").select("id, action, changed_at, changed_by_name, row_data").eq("repair_id", id).order("id", { ascending: true }).then(function (r) {
       if (r.error || !r.data || !r.data.length || !editing || editing.id !== id) return;
-      var prev = null, items = [];
-      r.data.forEach(function (e) {
-        var cur = e.row_data || {}, lines = [];
-        if (e.action === "INSERT") lines.push("הקריאה נפתחה");
-        else if (prev) Object.keys(FIELDS).forEach(function (k) {
-          if (JSON.stringify(prev[k]) !== JSON.stringify(cur[k])) lines.push(FIELDS[k] + ": " + fval(k, prev[k]) + " ← " + fval(k, cur[k]));
-        });
-        if (!lines.length) lines.push("נשמרה ללא שינוי בשדות");
-        var d = new Date(e.changed_at);
-        items.push({ hd: d.toLocaleDateString("he-IL") + " " + d.toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit" }) + " · " + (e.changed_by_name || "לא ידוע"), lines: lines });
-        prev = cur;
-      });
+      var items = historyItems(r.data);
       items.reverse().forEach(function (it) {
         var ul = h("ul");
         it.lines.forEach(function (l) { ul.appendChild(h("li", { text: l })); });
@@ -325,10 +314,144 @@ if (window.top !== window.self) { document.documentElement.hidden = true; throw 
     });
   }
 
+  // ---------- PDF report for one call ----------
+  // The report is laid out as ordinary HTML (so the browser sets the Hebrew), each block is
+  // rendered to an image, and the images are stacked onto A4 pages without splitting a block.
+  function fmtDT(iso) { if (!iso) return ""; var d = new Date(iso); return d.toLocaleDateString("he-IL") + " " + d.toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit" }); }
+  function historyItems(data) {
+    var prev = null, items = [];
+    (data || []).forEach(function (e) {
+      var cur = e.row_data || {}, lines = [];
+      if (e.action === "INSERT") lines.push("הקריאה נפתחה");
+      else if (e.action === "DELETE") lines.push("הקריאה נמחקה");
+      else if (prev) Object.keys(FIELDS).forEach(function (k) {
+        if (JSON.stringify(prev[k]) !== JSON.stringify(cur[k])) lines.push(FIELDS[k] + ": " + fval(k, prev[k]) + " ← " + fval(k, cur[k]));
+      });
+      if (!lines.length) lines.push("נשמרה ללא שינוי בשדות");
+      items.push({ hd: fmtDT(e.changed_at) + " · " + (e.changed_by_name || "לא ידוע"), lines: lines });
+      prev = cur;
+    });
+    return items;
+  }
+  function buildReport(r, hist, imgUrls) {
+    var root = h("div", { class: "report", dir: "rtl", lang: "he" }), pending = null;
+    function block() {
+      var b = h("div", { class: "rblock" });
+      if (pending) { b.appendChild(h("h3", { class: "rsec", text: pending })); pending = null; }
+      for (var i = 0; i < arguments.length; i++) if (arguments[i]) b.appendChild(arguments[i]);
+      root.appendChild(b);
+    }
+    function kv(label, value) { return h("div", { class: "rkv" }, h("span", { class: "rk", text: label }), h("span", { class: "rv", text: value || "—" })); }
+    function text(label, value) { block(label ? h("div", { class: "rk", text: label }) : null, h("p", { class: "rtext", text: value || "—" })); }
+    function photos(title, paths) {
+      if (!paths.length) return;
+      pending = title + " (" + paths.length + ")";
+      for (var i = 0; i < paths.length; i += 2) {
+        var row = h("div", { class: "rphotos" });
+        paths.slice(i, i + 2).forEach(function (p) {
+          row.appendChild(imgUrls[p] ? h("img", { src: imgUrls[p], alt: "" }) : h("div", { class: "rmissing", text: "התמונה לא זמינה" }));
+        });
+        block(row);
+      }
+    }
+    var st = STATUS[r.status] ? r.status : "open";
+    block(h("div", { class: "rhead" },
+      h("img", { src: "logo.png?v=7", alt: "" }),
+      h("div", { class: "rtitle" }, h("div", { class: "rname", text: "מחלקת בדק סיטי פרוייקטים" }), h("div", { class: "rdoc", text: "דוח קריאת שירות" }),
+        h("div", { class: "rmeta", text: "הופק בתאריך " + fmtDT(new Date().toISOString()) + (me ? " על ידי " + (me.full_name || me.email) : "") })),
+      h("span", { class: "pill " + st, text: STATUS[st] })));
+    block(h("div", { class: "rgrid" },
+      kv("פרויקט", r.project), kv("בניין ודירה", r.apartment), kv("שם הרוכש", r.buyer), kv("סטטוס", STATUS[st]),
+      kv("תאריך פתיחת הקריאה", fmtDate(r.opened_on)), kv("נרשמה במערכת", fmtDT(r.created_at) + (r.created_by_name ? " · " + r.created_by_name : ""))));
+    pending = "תיאור הליקוי"; text("", r.issue);
+    photos("תמונות לפני התיקון", r.photos_before || []);
+    pending = "פרטי התיקון";
+    block(h("div", { class: "rgrid" }, kv("תאריך התיקון", fmtDate(r.fix_date)), kv("מי תיקן", r.fixer)));
+    text("מה תוקן", r.fix_desc);
+    photos("תמונות אחרי התיקון", r.photos_after || []);
+    if (r.notes) { pending = "הערות"; text("", r.notes); }
+    pending = "אישור וחתימת הלקוח";
+    if (r.signature_path) block(
+      imgUrls[r.signature_path] ? h("img", { class: "rsig", src: imgUrls[r.signature_path], alt: "" }) : h("div", { class: "rmissing", text: "תמונת החתימה לא זמינה" }),
+      h("p", { class: "rtext", text: "נחתם על ידי " + (r.signed_name || "לא צוין") + " בתאריך " + fmtDT(r.signed_at) + ". מועד החתימה נרשם על ידי השרת." }));
+    else text("", r.approved ? "הרוכש אישר את התיקון (סומן על ידי הצוות, ללא חתימה)." : "הלקוח טרם חתם.");
+    if (hist.length) {
+      pending = "היסטוריית שינויים";
+      hist.forEach(function (it) {
+        var ul = h("ul"); it.lines.forEach(function (l) { ul.appendChild(h("li", { text: l })); });
+        block(h("div", { class: "rev" }, h("div", { class: "rhd", text: it.hd }), ul));
+      });
+    }
+    return root;
+  }
+  function reportToPdf(root) {
+    document.body.appendChild(root);
+    var imgs = Array.prototype.slice.call(root.querySelectorAll("img"));
+    return Promise.all(imgs.map(function (i) { return i.decode ? i.decode().catch(function () {}) : null; }))
+      .then(function () { return document.fonts && document.fonts.ready; })
+      .then(function () {
+        // Group consecutive blocks (about four screens each) so the report is rendered a few times, not once per block,
+        // then cut each rendered group back into its blocks so a page break never lands inside one.
+        var blocks = Array.prototype.slice.call(root.querySelectorAll(".rblock")), groups = [], g = null, gh = 0;
+        blocks.forEach(function (b) {
+          var bh = b.offsetHeight;
+          if (!g || gh + bh > 3200) { g = h("div", { class: "rgroup" }); root.insertBefore(g, b); groups.push(g); gh = 0; }
+          g.appendChild(b); gh += bh;
+        });
+        var pieces = [], chain = Promise.resolve();
+        groups.forEach(function (grp) {
+          chain = chain.then(function () { return window.html2canvas(grp, { scale: 2, backgroundColor: "#ffffff", logging: false }); }).then(function (cv) {
+            var box = grp.getBoundingClientRect(), k = cv.height / box.height;
+            Array.prototype.forEach.call(grp.children, function (b) {
+              var rc = b.getBoundingClientRect(), y0 = Math.round((rc.top - box.top) * k), hp = Math.min(Math.round(rc.height * k), cv.height - y0);
+              if (hp <= 0) return;
+              var t = document.createElement("canvas"); t.width = cv.width; t.height = hp;
+              t.getContext("2d").drawImage(cv, 0, y0, cv.width, hp, 0, 0, cv.width, hp);
+              pieces.push(t);
+            });
+          });
+        });
+        return chain.then(function () { return pieces; });
+      }).then(function (canvases) {
+        var doc = new window.jspdf.jsPDF({ unit: "pt", format: "a4" }), PW = doc.internal.pageSize.getWidth(), PH = doc.internal.pageSize.getHeight();
+        var M = 30, W = PW - 2 * M, top = M, bottom = PH - 44, y = top, maxH = bottom - top;
+        function put(cv) { var hh = cv.height * W / cv.width; if (y + hh > bottom + 0.5) { doc.addPage(); y = top; } doc.addImage(cv.toDataURL("image/jpeg", 0.92), "JPEG", M, y, W, hh); y += hh; }
+        canvases.forEach(function (cv) {
+          if (!cv.width || !cv.height) return;
+          if (cv.height * W / cv.width <= maxH) return put(cv);
+          var slice = Math.floor(maxH * cv.width / W), off = 0;       // a block taller than a page is cut into page-high pieces
+          while (off < cv.height) {
+            var hp = Math.min(slice, cv.height - off), t = document.createElement("canvas");
+            t.width = cv.width; t.height = hp; t.getContext("2d").drawImage(cv, 0, off, cv.width, hp, 0, 0, cv.width, hp);
+            put(t); off += hp;
+          }
+        });
+        var n = doc.getNumberOfPages();
+        for (var p = 1; p <= n; p++) { doc.setPage(p); doc.setFontSize(9); doc.setTextColor(120); doc.text(p + " / " + n, PW / 2, PH - 22, { align: "center" }); }
+        return doc;
+      }).then(function (doc) { root.remove(); return doc; }, function (e) { root.remove(); throw e; });
+  }
+  window.bedekReport = { build: buildReport, toPdf: reportToPdf };   // pure layout helpers, exposed for testing; they read no data
+  $("pdfBtn").addEventListener("click", function () {
+    var r = editing && editing.record, btn = $("pdfBtn");
+    if (!r) return;
+    if (!window.html2canvas || !window.jspdf) return msg("err", "רכיב ה-PDF לא נטען. רעננו את הדף ונסו שוב.");
+    btn.disabled = true; btn.textContent = "מכין PDF…"; msg("err", "");
+    var paths = (r.photos_before || []).concat(r.photos_after || []).concat(r.signature_path ? [r.signature_path] : []), map = {}, made = [];
+    Promise.all(paths.map(function (p) {
+      return sb.storage.from(BUCKET).download(p).then(function (res) { if (!res.error && res.data) { map[p] = URL.createObjectURL(res.data); made.push(map[p]); } });
+    })).then(function () {
+      return sb.from("repairs_history").select("id, action, changed_at, changed_by_name, row_data").eq("repair_id", r.id).order("id", { ascending: true });
+    }).then(function (hr) { return reportToPdf(buildReport(r, historyItems(hr.data), map)); })
+      .then(function (doc) { doc.save("bedek-" + (r.apartment || "").replace(/[^0-9A-Za-z\u0590-\u05FF]+/g, "-").slice(0, 40) + "-" + r.opened_on + ".pdf"); })
+      .catch(function () { msg("err", "הפקת ה-PDF נכשלה. נסו שוב."); })
+      .then(function () { made.forEach(function (u) { URL.revokeObjectURL(u); }); btn.disabled = false; btn.textContent = "ייצוא PDF"; });
+  });
+
   // ---------- call form ----------
   function openForm(r) {
     editing = { id: r ? r.id : crypto.randomUUID(), isNew: !r, before: r ? r.photos_before.slice() : [], after: r ? r.photos_after.slice() : [],
-      signature: r ? r.signature_path : null, signedName: r ? r.signed_name : "", signedAt: r ? r.signed_at : null };
+      record: r || null, signature: r ? r.signature_path : null, signedName: r ? r.signed_name : "", signedAt: r ? r.signed_at : null };
     $("dlgTitle").textContent = r ? "עריכת קריאה" : "קריאה חדשה";
     $("f_date").value = r ? r.opened_on : today();
     $("f_status").value = r && STATUS[r.status] ? r.status : "open";
@@ -342,6 +465,7 @@ if (window.top !== window.self) { document.documentElement.hidden = true; throw 
     $("f_notes").value = r ? r.notes : "";
     $("f_approved").checked = !!(r && r.approved);
     $("delBtn").hidden = !(r && me.role === "admin");
+    $("pdfBtn").hidden = !r;
     $("delBtn").textContent = "מחיקת הקריאה"; $("delBtn").dataset.armed = "";
     msg("err", "");
     var stamp = "";

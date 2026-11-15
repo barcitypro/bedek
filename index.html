@@ -109,6 +109,12 @@ dialog form, dialog .body { display: flex; flex-direction: column; gap: 14px; pa
 .err { color: var(--danger); font-size: 14px; }
 .ok { color: var(--done-fg); font-size: 14px; }
 .stamp { color: var(--muted); font-size: 13px; }
+.sig { display: flex; flex-direction: column; gap: 6px; }
+.sig .title { font-size: 13px; color: var(--muted); font-weight: 500; }
+.sig #sigNew, .sig #sigDone { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
+.sig #sigNew label { width: 100%; }
+#sigPad { width: 100%; height: 160px; border: 1px solid var(--line); border-radius: 6px; background: #fff; touch-action: none; display: block; cursor: crosshair; }
+#sigImg { max-width: 100%; height: 120px; background: #fff; border: 1px solid var(--line); border-radius: 6px; object-fit: contain; }
 .hist { border-top: 1px solid var(--line); padding-top: 10px; }
 .hist summary { cursor: pointer; font-weight: 500; }
 .hist .ev { padding: 8px 0; border-top: 1px solid var(--line); font-size: 14px; }
@@ -197,6 +203,22 @@ dialog form, dialog .body { display: flex; flex-direction: column; gap: 14px; pa
       <label class="f">מי תיקן<input type="text" id="f_fixer" autocomplete="off"></label>
       <label class="f full">מה תוקן<textarea id="f_fixDesc" placeholder="העבודה שבוצעה והחלקים שהוחלפו"></textarea></label>
       <div class="photos full" id="photosAfter"></div>
+      <div class="sig full">
+        <div class="title">חתימת הלקוח</div>
+        <div id="sigDone" hidden>
+          <img id="sigImg" alt="חתימת הלקוח">
+          <div class="stamp" id="sigInfo"></div>
+          <button class="btn small danger" type="button" id="sigRemove" hidden>הסרת החתימה</button>
+        </div>
+        <div id="sigNew">
+          <label class="f">שם החותם<input type="text" id="f_signedName" autocomplete="off"></label>
+          <canvas id="sigPad" aria-label="משטח חתימה"></canvas>
+          <div class="actions">
+            <button class="btn small" type="button" id="sigClear">ניקוי החתימה</button>
+            <span class="stamp">הלקוח חותם כאן באצבע או בעכבר. החתימה נשמרת בלחיצה על "שמירה".</span>
+          </div>
+        </div>
+      </div>
       <label class="check full"><input type="checkbox" id="f_approved"> הרוכש אישר את התיקון</label>
       <label class="f full">הערות<textarea id="f_notes"></textarea></label>
     </div>
@@ -436,7 +458,8 @@ dialog form, dialog .body { display: flex; flex-direction: column; gap: 14px; pa
     shown.forEach(function (r) {
       var n = r.photos_before.length + r.photos_after.length, meta = [];
       if (r.fix_date) meta.push("תוקן ב-" + fmtDate(r.fix_date));
-      if (r.approved) meta.push("הרוכש אישר");
+      if (r.signature_path) meta.push("נחתם");
+      else if (r.approved) meta.push("הרוכש אישר");
       if (n) meta.push(n + " תמונות");
       var where = h("span", { class: "where", text: r.apartment });
       if (r.project || r.buyer) where.appendChild(h("small", { text: [r.project, r.buyer].filter(Boolean).join(" · ") }));
@@ -507,10 +530,45 @@ dialog form, dialog .body { display: flex; flex-direction: column; gap: 14px; pa
       .then(function () { $("saveBtn").disabled = false; $("saveBtn").textContent = "שמירה"; });
   }
 
+  // ---------- customer signature ----------
+  var pad = $("sigPad"), ctx = pad.getContext("2d"), sigDirty = false, drawing = false;
+  function sigReset() {   // ink is always dark on white, whatever the page theme, so the saved image reads the same everywhere
+    var dpr = window.devicePixelRatio || 1, w = pad.clientWidth || 560, hh = pad.clientHeight || 160;
+    pad.width = Math.round(w * dpr); pad.height = Math.round(hh * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, w, hh);
+    ctx.strokeStyle = "#111"; ctx.lineWidth = 2.2; ctx.lineCap = "round"; ctx.lineJoin = "round";
+    sigDirty = false;
+  }
+  function sigPos(e) { var r = pad.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; }
+  pad.addEventListener("pointerdown", function (e) {
+    e.preventDefault(); try { pad.setPointerCapture(e.pointerId); } catch (x) {}
+    var p = sigPos(e); drawing = true; sigDirty = true;
+    ctx.beginPath(); ctx.moveTo(p[0], p[1]); ctx.lineTo(p[0] + 0.1, p[1] + 0.1); ctx.stroke();
+  });
+  pad.addEventListener("pointermove", function (e) { if (!drawing) return; var p = sigPos(e); ctx.lineTo(p[0], p[1]); ctx.stroke(); });
+  ["pointerup", "pointercancel", "pointerleave"].forEach(function (n) { pad.addEventListener(n, function () { drawing = false; }); });
+  $("sigClear").addEventListener("click", sigReset);
+  $("sigRemove").addEventListener("click", function () { editing.signature = null; renderSig(); });
+  function renderSig() {
+    var has = !!editing.signature;
+    $("sigDone").hidden = !has; $("sigNew").hidden = has;
+    if (!has) { $("f_signedName").value = ""; sigReset(); return; }
+    var d = editing.signedAt ? new Date(editing.signedAt) : null;
+    $("sigInfo").textContent = "נחתם על ידי " + (editing.signedName || "לא צוין") +
+      (d ? " בתאריך " + d.toLocaleDateString("he-IL") + " בשעה " + d.toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit" }) : "");
+    $("sigRemove").hidden = me.role !== "admin";
+    $("sigImg").removeAttribute("src");
+    var path = editing.signature;
+    signed([path]).then(function () { if (editing && editing.signature === path && urls[path]) $("sigImg").src = urls[path]; });
+  }
+
   // ---------- change history: who changed what, and when ----------
   var FIELDS = { opened_on: "תאריך פתיחה", status: "סטטוס", project: "פרויקט", apartment: "בניין ודירה", buyer: "רוכש", issue: "תיאור הליקוי",
-    fix_date: "תאריך תיקון", fix_desc: "מה תוקן", fixer: "מי תיקן", approved: "אישור רוכש", notes: "הערות", photos_before: "תמונות לפני", photos_after: "תמונות אחרי" };
+    fix_date: "תאריך תיקון", fix_desc: "מה תוקן", fixer: "מי תיקן", approved: "אישור רוכש", notes: "הערות", photos_before: "תמונות לפני", photos_after: "תמונות אחרי",
+    signature_path: "חתימת לקוח", signed_name: "שם החותם" };
   function fval(k, v) {
+    if (k === "signature_path") return v ? "נחתם" : "אין חתימה";
     if (k === "opened_on" || k === "fix_date") return fmtDate(v) || "ריק";
     if (k === "status") return STATUS[v] || String(v || "ריק");
     if (k === "approved") return v ? "כן" : "לא";
@@ -546,7 +604,8 @@ dialog form, dialog .body { display: flex; flex-direction: column; gap: 14px; pa
 
   // ---------- call form ----------
   function openForm(r) {
-    editing = { id: r ? r.id : crypto.randomUUID(), isNew: !r, before: r ? r.photos_before.slice() : [], after: r ? r.photos_after.slice() : [] };
+    editing = { id: r ? r.id : crypto.randomUUID(), isNew: !r, before: r ? r.photos_before.slice() : [], after: r ? r.photos_after.slice() : [],
+      signature: r ? r.signature_path : null, signedName: r ? r.signed_name : "", signedAt: r ? r.signed_at : null };
     $("dlgTitle").textContent = r ? "עריכת קריאה" : "קריאה חדשה";
     $("f_date").value = r ? r.opened_on : today();
     $("f_status").value = r && STATUS[r.status] ? r.status : "open";
@@ -572,6 +631,7 @@ dialog form, dialog .body { display: flex; flex-direction: column; gap: 14px; pa
     if (r) loadHistory(r.id); else { $("hist").hidden = true; $("histList").textContent = ""; }
     renderPhotos("before"); renderPhotos("after");
     $("dlg").showModal();
+    renderSig();   // after the dialog is visible, so the signature pad can measure itself
   }
   $("newBtn").addEventListener("click", function () { openForm(null); });
   $("cancelBtn").addEventListener("click", function () { $("dlg").close(); });
@@ -592,15 +652,27 @@ dialog form, dialog .body { display: flex; flex-direction: column; gap: 14px; pa
     if (b.status === "done" && !b.fix_date) return msg("err", "כדי לסמן \"תוקן\" צריך למלא את תאריך התיקון.");
     if (b.status === "done" && !b.fix_desc) return msg("err", "כדי לסמן \"תוקן\" צריך לפרט מה תוקן.");
     if (b.fix_date && b.fix_date < b.opened_on) return msg("err", "תאריך התיקון מוקדם מתאריך פתיחת הקריאה.");
+    var newSig = !editing.signature && sigDirty, signer = $("f_signedName").value.trim();
+    if (newSig && !signer) return msg("err", "יש חתימה אבל חסר שם החותם.");
     $("saveBtn").disabled = true; msg("err", "");
-    var q;
-    if (editing.isNew) { b.id = editing.id; q = sb.from("repairs").insert(b); }
-    else q = sb.from("repairs").update(b).eq("id", editing.id);
-    q.then(function (r) {
-      $("saveBtn").disabled = false;
-      if (r.error) return msg("err", r.error.code === "42501" ? "אין לך הרשאה לשמור קריאות." : "השמירה נכשלה. בדקו את החיבור ונסו שוב.");
-      $("dlg").close(); load();
+    b.signature_path = editing.signature || null;
+    var pre = Promise.resolve();
+    if (newSig) pre = new Promise(function (res) { pad.toBlob(res, "image/png"); }).then(function (blob) {
+      var path = editing.id + "/signature-" + crypto.randomUUID() + ".png";
+      return sb.storage.from(BUCKET).upload(path, blob, { contentType: "image/png" }).then(function (r) {
+        if (r.error) throw r.error;
+        b.signature_path = path; b.signed_name = signer; b.approved = true;
+      });
     });
+    pre.then(function () {
+      if (editing.isNew) { b.id = editing.id; return sb.from("repairs").insert(b); }
+      return sb.from("repairs").update(b).eq("id", editing.id);
+    }).then(function (r) {
+      if (r.error) throw r.error;
+      $("dlg").close(); load();
+    }).catch(function (e) {
+      msg("err", e && e.code === "42501" ? "אין לך הרשאה לבצע את השינוי הזה." : "השמירה נכשלה. בדקו את החיבור ונסו שוב.");
+    }).then(function () { $("saveBtn").disabled = false; });
   });
   $("delBtn").addEventListener("click", function () {
     var b = $("delBtn");
@@ -621,13 +693,14 @@ dialog form, dialog .body { display: flex; flex-direction: column; gap: 14px; pa
       return {
         "תאריך פתיחה": fmtDate(r.opened_on), "סטטוס": STATUS[r.status] || "", "פרויקט": r.project, "בניין ודירה": r.apartment, "רוכש": r.buyer,
         "תיאור הליקוי": r.issue, "תאריך תיקון": fmtDate(r.fix_date), "מה תוקן": r.fix_desc, "מי תיקן": r.fixer,
-        "הרוכש אישר": r.approved ? "כן" : "לא", "הערות": r.notes, "תמונות לפני": r.photos_before.length, "תמונות אחרי": r.photos_after.length,
+        "הרוכש אישר": r.approved ? "כן" : "לא", "שם החותם": r.signed_name || "",
+        "מועד חתימה": r.signed_at ? new Date(r.signed_at).toLocaleString("he-IL") : "", "הערות": r.notes, "תמונות לפני": r.photos_before.length, "תמונות אחרי": r.photos_after.length,
         "נפתחה על ידי": r.created_by_name, "עודכנה על ידי": r.updated_by_name, "עודכנה בתאריך": new Date(r.updated_at).toLocaleString("he-IL")
       };
     });
     if (!data.length) return;
     var ws = XLSX.utils.json_to_sheet(data);
-    ws["!cols"] = [12, 9, 16, 18, 18, 40, 12, 40, 16, 10, 30, 10, 10, 16, 16, 18].map(function (w) { return { wch: w }; });
+    ws["!cols"] = [12, 9, 16, 18, 18, 40, 12, 40, 16, 10, 16, 18, 30, 10, 10, 16, 16, 18].map(function (w) { return { wch: w }; });
     var wb = XLSX.utils.book_new();
     wb.Workbook = { Views: [{ RTL: true }] };
     XLSX.utils.book_append_sheet(wb, ws, "קריאות");

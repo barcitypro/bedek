@@ -6,6 +6,7 @@ if (window.top !== window.self) { document.documentElement.hidden = true; throw 
   var SUPABASE_URL = "https://kvdhdxcbxvmjnaezbtwx.supabase.co";
   var SUPABASE_KEY = "sb_publishable_7s4w3CA_cjgQsPkvkPAN6w_cFbs45Hs";
   var BUCKET = "repair-photos";
+  var PHOTO_LINK_SECONDS = 365 * 24 * 60 * 60;   // how long a photo link opened from the app keeps working: one year
   var STATUS = { open: "פתוח", progress: "בטיפול", done: "תוקן" };
   var ROLES = { admin: "מנהל", staff: "איש צוות", disabled: "חסום" };
 
@@ -200,7 +201,7 @@ if (window.top !== window.self) { document.documentElement.hidden = true; throw 
   function signed(paths) {
     var need = paths.filter(function (p) { return !urls[p]; });
     if (!need.length) return Promise.resolve();
-    return sb.storage.from(BUCKET).createSignedUrls(need, 3600).then(function (r) {
+    return sb.storage.from(BUCKET).createSignedUrls(need, PHOTO_LINK_SECONDS).then(function (r) {
       (r.data || []).forEach(function (x) { if (x.signedUrl && x.path) urls[x.path] = x.signedUrl; });
     });
   }

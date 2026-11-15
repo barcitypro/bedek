@@ -109,6 +109,13 @@ dialog form, dialog .body { display: flex; flex-direction: column; gap: 14px; pa
 .err { color: var(--danger); font-size: 14px; }
 .ok { color: var(--done-fg); font-size: 14px; }
 .stamp { color: var(--muted); font-size: 13px; }
+.hist { border-top: 1px solid var(--line); padding-top: 10px; }
+.hist summary { cursor: pointer; font-weight: 500; }
+.hist .ev { padding: 8px 0; border-top: 1px solid var(--line); font-size: 14px; }
+.hist .ev:first-child { border-top: 0; }
+.hist .ev .hd { color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; }
+.hist .ev ul { margin: 2px 0 0; padding-inline-start: 18px; }
+.hist .ev li { overflow-wrap: anywhere; }
 .urow { display: grid; grid-template-columns: minmax(0, 1fr) 130px auto; gap: 8px; align-items: center; padding: 8px 0; border-top: 1px solid var(--line); }
 .urow:first-child { border-top: 0; }
 .urow .who { min-width: 0; overflow-wrap: anywhere; }
@@ -197,6 +204,10 @@ dialog form, dialog .body { display: flex; flex-direction: column; gap: 14px; pa
     <datalist id="dlBuyers"></datalist>
     <div class="err" id="err" hidden></div>
     <div class="stamp" id="stamp"></div>
+    <details class="hist" id="hist" hidden>
+      <summary id="histSum">היסטוריית שינויים</summary>
+      <div id="histList"></div>
+    </details>
     <div class="foot">
       <div class="actions">
         <button class="btn primary" id="saveBtn" type="submit">שמירה</button>
@@ -496,6 +507,43 @@ dialog form, dialog .body { display: flex; flex-direction: column; gap: 14px; pa
       .then(function () { $("saveBtn").disabled = false; $("saveBtn").textContent = "שמירה"; });
   }
 
+  // ---------- change history: who changed what, and when ----------
+  var FIELDS = { opened_on: "תאריך פתיחה", status: "סטטוס", project: "פרויקט", apartment: "בניין ודירה", buyer: "רוכש", issue: "תיאור הליקוי",
+    fix_date: "תאריך תיקון", fix_desc: "מה תוקן", fixer: "מי תיקן", approved: "אישור רוכש", notes: "הערות", photos_before: "תמונות לפני", photos_after: "תמונות אחרי" };
+  function fval(k, v) {
+    if (k === "opened_on" || k === "fix_date") return fmtDate(v) || "ריק";
+    if (k === "status") return STATUS[v] || String(v || "ריק");
+    if (k === "approved") return v ? "כן" : "לא";
+    if (k.indexOf("photos_") === 0) return (Array.isArray(v) ? v.length : 0) + " תמונות";
+    v = v == null ? "" : String(v);
+    return v ? (v.length > 80 ? v.slice(0, 80) + "…" : v) : "ריק";
+  }
+  function loadHistory(id) {
+    var box = $("histList"); box.textContent = ""; $("hist").hidden = true; $("hist").open = false;
+    sb.from("repairs_history").select("id, action, changed_at, changed_by_name, row_data").eq("repair_id", id).order("id", { ascending: true }).then(function (r) {
+      if (r.error || !r.data || !r.data.length || !editing || editing.id !== id) return;
+      var prev = null, items = [];
+      r.data.forEach(function (e) {
+        var cur = e.row_data || {}, lines = [];
+        if (e.action === "INSERT") lines.push("הקריאה נפתחה");
+        else if (prev) Object.keys(FIELDS).forEach(function (k) {
+          if (JSON.stringify(prev[k]) !== JSON.stringify(cur[k])) lines.push(FIELDS[k] + ": " + fval(k, prev[k]) + " ← " + fval(k, cur[k]));
+        });
+        if (!lines.length) lines.push("נשמרה ללא שינוי בשדות");
+        var d = new Date(e.changed_at);
+        items.push({ hd: d.toLocaleDateString("he-IL") + " " + d.toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit" }) + " · " + (e.changed_by_name || "לא ידוע"), lines: lines });
+        prev = cur;
+      });
+      items.reverse().forEach(function (it) {
+        var ul = h("ul");
+        it.lines.forEach(function (l) { ul.appendChild(h("li", { text: l })); });
+        box.appendChild(h("div", { class: "ev" }, h("div", { class: "hd", text: it.hd }), ul));
+      });
+      $("histSum").textContent = "היסטוריית שינויים (" + items.length + ")";
+      $("hist").hidden = false;
+    });
+  }
+
   // ---------- call form ----------
   function openForm(r) {
     editing = { id: r ? r.id : crypto.randomUUID(), isNew: !r, before: r ? r.photos_before.slice() : [], after: r ? r.photos_after.slice() : [] };
@@ -521,6 +569,7 @@ dialog form, dialog .body { display: flex; flex-direction: column; gap: 14px; pa
         d.toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit" }) + (r.updated_by_name ? " על ידי " + r.updated_by_name : "");
     }
     $("stamp").textContent = stamp;
+    if (r) loadHistory(r.id); else { $("hist").hidden = true; $("histList").textContent = ""; }
     renderPhotos("before"); renderPhotos("after");
     $("dlg").showModal();
   }

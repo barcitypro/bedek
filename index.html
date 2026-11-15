@@ -1,0 +1,651 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>יומן תיקוני דירות</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;700&family=Rubik:wght@500;700&display=swap">
+<style>
+:root {
+  --bg: #f3f5f8; --surface: #ffffff; --fg: #17212e; --muted: #5b6878; --line: #d6dce5;
+  --accent: #1f5fa8; --accent-fg: #ffffff;
+  --open-bg: #fde8e4; --open-fg: #9a2a17;
+  --prog-bg: #fdf0cf; --prog-fg: #7a5200;
+  --done-bg: #dff3e3; --done-fg: #1c6b33;
+  --danger: #b3261e;
+  --font-body: "Heebo", "Segoe UI", Arial, sans-serif;
+  --font-head: "Rubik", "Heebo", "Segoe UI", Arial, sans-serif;
+  --radius: 8px;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #111822; --surface: #1a2330; --fg: #e8edf4; --muted: #9aa8ba; --line: #2f3b4c;
+    --accent: #6fa8e8; --accent-fg: #0d1722;
+    --open-bg: #4a1f18; --open-fg: #ffb4a6;
+    --prog-bg: #45350d; --prog-fg: #f5d27a;
+    --done-bg: #173a22; --done-fg: #9fe0b0;
+    --danger: #ff8a80; color-scheme: dark;
+  }
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 15px; line-height: 1.5; }
+.wrap { max-width: 1080px; margin: 0 auto; padding: 24px 16px 48px; display: flex; flex-direction: column; gap: 16px; }
+h1 { font-family: var(--font-head); font-size: 26px; font-weight: 700; margin: 0; text-wrap: balance; }
+h2 { font-family: var(--font-head); font-size: 20px; margin: 0; }
+.top { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; }
+.sub { color: var(--muted); margin: 2px 0 0; font-size: 14px; }
+button, input, select, textarea { font: inherit; color: inherit; }
+.btn { border: 1px solid var(--line); background: var(--surface); border-radius: var(--radius); padding: 8px 14px; cursor: pointer; font-weight: 500; }
+.btn:hover { border-color: var(--accent); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); }
+.btn.danger { color: var(--danger); }
+.btn.small { padding: 4px 10px; font-size: 13px; }
+.btn:disabled { opacity: .55; cursor: default; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 24px; max-width: 420px; margin: 8vh auto 0; display: flex; flex-direction: column; gap: 14px; }
+.center { text-align: center; color: var(--muted); padding: 20vh 0; }
+
+.counts { display: flex; gap: 8px; flex-wrap: wrap; }
+.count { border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 5px 14px; cursor: pointer; display: flex; gap: 8px; align-items: baseline; }
+.count b { font-family: var(--font-head); font-variant-numeric: tabular-nums; }
+.count[aria-pressed="true"] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+
+.filters { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr) auto; gap: 8px; align-items: end; }
+@media (max-width: 720px) { .filters { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } .filters .wide { grid-column: 1 / -1; } }
+input[type="text"], input[type="search"], input[type="date"], input[type="email"], input[type="password"], select, textarea {
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 8px 10px; width: 100%;
+}
+textarea { resize: vertical; min-height: 64px; }
+label.f { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted); font-weight: 500; min-width: 0; }
+label.f > * { color: var(--fg); font-weight: 400; font-size: 15px; }
+label.check { display: flex; gap: 8px; align-items: center; }
+label.check input { width: 18px; height: 18px; }
+
+.list { display: flex; flex-direction: column; gap: 8px; }
+.row { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px; display: grid; gap: 4px 16px; align-items: center; cursor: pointer;
+  grid-template-columns: 92px minmax(0, 1.2fr) minmax(0, 2fr) auto auto; text-align: start; width: 100%; }
+.row:hover { border-color: var(--accent); }
+.row .date { font-variant-numeric: tabular-nums; color: var(--muted); }
+.row .where { font-weight: 700; min-width: 0; overflow-wrap: anywhere; }
+.row .where small { display: block; font-weight: 400; color: var(--muted); }
+.row .issue { min-width: 0; overflow-wrap: anywhere; }
+.row .meta { color: var(--muted); font-size: 13px; white-space: nowrap; }
+.pill { border-radius: 999px; padding: 2px 10px; font-size: 13px; font-weight: 500; white-space: nowrap; justify-self: start; }
+.pill.open { background: var(--open-bg); color: var(--open-fg); }
+.pill.progress { background: var(--prog-bg); color: var(--prog-fg); }
+.pill.done { background: var(--done-bg); color: var(--done-fg); }
+@media (max-width: 720px) {
+  .row { grid-template-columns: minmax(0, 1fr) auto; }
+  .row .date { order: 1; } .row .pill { order: 2; justify-self: end; }
+  .row .where, .row .issue { grid-column: 1 / -1; order: 3; }
+  .row .meta { grid-column: 1 / -1; order: 4; white-space: normal; }
+}
+.empty { border: 1px dashed var(--line); border-radius: var(--radius); padding: 32px 20px; text-align: center; color: var(--muted); }
+.empty strong { display: block; color: var(--fg); font-family: var(--font-head); font-size: 17px; margin-bottom: 4px; }
+.shown { color: var(--muted); font-size: 13px; }
+
+dialog { border: 1px solid var(--line); border-radius: 12px; background: var(--surface); color: var(--fg); padding: 0; width: min(640px, calc(100vw - 24px)); max-height: calc(100vh - 24px); }
+dialog::backdrop { background: rgba(10, 16, 24, .55); }
+dialog form, dialog .body { display: flex; flex-direction: column; gap: 14px; padding: 20px; }
+.grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.grid .full { grid-column: 1 / -1; }
+@media (max-width: 520px) { .grid { grid-template-columns: minmax(0, 1fr); } }
+.sec { font-family: var(--font-head); font-size: 15px; font-weight: 500; margin: 0; padding-top: 10px; border-top: 1px solid var(--line); }
+.sec.first { border-top: 0; padding-top: 0; }
+.photos { display: flex; flex-direction: column; gap: 6px; }
+.photos .title { font-size: 13px; color: var(--muted); font-weight: 500; }
+.thumbs { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.thumb { position: relative; width: 76px; height: 76px; border-radius: 6px; overflow: hidden; border: 1px solid var(--line); background: var(--bg); }
+.thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.thumb button { position: absolute; top: 2px; inset-inline-end: 2px; width: 22px; height: 22px; border-radius: 50%; border: 0; background: var(--surface); color: var(--fg); cursor: pointer; line-height: 1; font-size: 14px; }
+.addphoto { position: relative; border: 1px dashed var(--line); border-radius: 6px; width: 76px; height: 76px; display: grid; place-items: center; cursor: pointer; color: var(--muted); font-size: 13px; text-align: center; }
+.addphoto input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.addphoto:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+.foot { display: flex; gap: 8px; flex-wrap: wrap; justify-content: space-between; align-items: center; }
+.err { color: var(--danger); font-size: 14px; }
+.ok { color: var(--done-fg); font-size: 14px; }
+.stamp { color: var(--muted); font-size: 13px; }
+.urow { display: grid; grid-template-columns: minmax(0, 1fr) 130px auto; gap: 8px; align-items: center; padding: 8px 0; border-top: 1px solid var(--line); }
+.urow:first-child { border-top: 0; }
+.urow .who { min-width: 0; overflow-wrap: anywhere; }
+.urow .who small { display: block; color: var(--muted); }
+.urow .pw { grid-column: 1 / -1; display: flex; gap: 8px; }
+@media (max-width: 520px) { .urow { grid-template-columns: minmax(0, 1fr) 110px; } .urow .rst { grid-column: 1 / -1; justify-self: start; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <section id="scrLoading" class="center">טוען…</section>
+
+  <section id="scrAuth" hidden>
+    <form class="card" id="authForm" novalidate>
+      <h1 id="authTitle">יומן תיקוני דירות</h1>
+      <p class="sub" id="authSub">כניסה לצוות החברה.</p>
+      <label class="f" id="authNameWrap" hidden>שם מלא<input type="text" id="a_name" autocomplete="name"></label>
+      <label class="f">אימייל<input type="email" id="a_email" autocomplete="username" required></label>
+      <label class="f">סיסמה<input type="password" id="a_pass" autocomplete="current-password" required></label>
+      <div class="err" id="authErr" hidden></div>
+      <button class="btn primary" id="authBtn" type="submit">כניסה</button>
+    </form>
+  </section>
+
+  <section id="scrBlocked" hidden>
+    <div class="card">
+      <h2>אין לך גישה ליומן</h2>
+      <p class="sub">החשבון הזה לא מורשה לצפות בנתונים. פנו למנהל המערכת כדי לקבל גישה.</p>
+      <button class="btn" type="button" id="blockedOut">יציאה</button>
+    </div>
+  </section>
+
+  <section id="scrMain" hidden style="display:flex;flex-direction:column;gap:16px">
+    <div class="top">
+      <div>
+        <h1>יומן תיקוני דירות</h1>
+        <p class="sub" id="whoami"></p>
+      </div>
+      <div class="actions">
+        <button class="btn primary" id="newBtn" type="button">קריאה חדשה</button>
+        <button class="btn" id="exportBtn" type="button">ייצוא לאקסל</button>
+        <button class="btn" id="usersBtn" type="button" hidden>משתמשים</button>
+        <button class="btn" id="pwBtn" type="button">שינוי סיסמה</button>
+        <button class="btn" id="outBtn" type="button">יציאה</button>
+      </div>
+    </div>
+
+    <div class="counts" id="counts" role="group" aria-label="סינון לפי סטטוס"></div>
+
+    <div class="filters">
+      <label class="f wide">חיפוש<input type="search" id="q" placeholder="דירה, ליקוי, מה תוקן, מי תיקן"></label>
+      <label class="f">פרויקט<select id="fProject"><option value="">כל הפרויקטים</option></select></label>
+      <label class="f">רוכש<select id="fBuyer"><option value="">כל הרוכשים</option></select></label>
+      <button class="btn" id="clearBtn" type="button">ניקוי סינון</button>
+    </div>
+    <div class="shown" id="shown"></div>
+
+    <div class="list" id="list"></div>
+  </section>
+</div>
+
+<dialog id="dlg">
+  <form id="frm" novalidate>
+    <h2 id="dlgTitle">קריאה חדשה</h2>
+    <div class="grid">
+      <h3 class="sec first full">פתיחת הקריאה</h3>
+      <label class="f">תאריך פתיחת הקריאה<input type="date" id="f_date" required></label>
+      <label class="f">סטטוס
+        <select id="f_status"><option value="open">פתוח</option><option value="progress">בטיפול</option><option value="done">תוקן</option></select>
+      </label>
+      <label class="f">פרויקט<input type="text" id="f_project" list="dlProjects" autocomplete="off"></label>
+      <label class="f">בניין ודירה<input type="text" id="f_apartment" placeholder="לדוגמה: בניין 2, דירה 14" autocomplete="off" required></label>
+      <label class="f full">שם הרוכש<input type="text" id="f_buyer" list="dlBuyers" autocomplete="off"></label>
+      <label class="f full">תיאור הליקוי<textarea id="f_issue" placeholder="מה הרוכש דיווח ואיפה בדירה" required></textarea></label>
+      <div class="photos full" id="photosBefore"></div>
+
+      <h3 class="sec full">פרטי התיקון</h3>
+      <label class="f">תאריך התיקון<input type="date" id="f_fixDate"></label>
+      <label class="f">מי תיקן<input type="text" id="f_fixer" autocomplete="off"></label>
+      <label class="f full">מה תוקן<textarea id="f_fixDesc" placeholder="העבודה שבוצעה והחלקים שהוחלפו"></textarea></label>
+      <div class="photos full" id="photosAfter"></div>
+      <label class="check full"><input type="checkbox" id="f_approved"> הרוכש אישר את התיקון</label>
+      <label class="f full">הערות<textarea id="f_notes"></textarea></label>
+    </div>
+    <datalist id="dlProjects"></datalist>
+    <datalist id="dlBuyers"></datalist>
+    <div class="err" id="err" hidden></div>
+    <div class="stamp" id="stamp"></div>
+    <div class="foot">
+      <div class="actions">
+        <button class="btn primary" id="saveBtn" type="submit">שמירה</button>
+        <button class="btn" id="cancelBtn" type="button">סגירה</button>
+      </div>
+      <button class="btn danger" id="delBtn" type="button" hidden>מחיקת הקריאה</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="usersDlg">
+  <div class="body">
+    <h2>משתמשים</h2>
+    <div id="usersList"></div>
+    <form id="newUserForm" novalidate style="padding:0">
+      <h3 class="sec">הוספת משתמש</h3>
+      <div class="grid">
+        <label class="f">שם מלא<input type="text" id="u_name" autocomplete="off"></label>
+        <label class="f">הרשאה<select id="u_role"><option value="staff">איש צוות</option><option value="admin">מנהל</option></select></label>
+        <label class="f">אימייל<input type="email" id="u_email" autocomplete="off"></label>
+        <label class="f">סיסמה ראשונית (8 תווים לפחות)<input type="text" id="u_pass" autocomplete="off"></label>
+      </div>
+      <div class="err" id="usersErr" hidden></div>
+      <div class="ok" id="usersOk" hidden></div>
+      <div class="actions">
+        <button class="btn primary" type="submit" id="u_add">הוספה</button>
+        <button class="btn" type="button" id="usersClose">סגירה</button>
+      </div>
+    </form>
+  </div>
+</dialog>
+
+<dialog id="pwDlg">
+  <form id="pwForm" novalidate>
+    <h2>שינוי סיסמה</h2>
+    <label class="f">סיסמה חדשה (8 תווים לפחות)<input type="password" id="p_new" autocomplete="new-password"></label>
+    <div class="err" id="pwErr" hidden></div>
+    <div class="ok" id="pwOk" hidden></div>
+    <div class="actions">
+      <button class="btn primary" type="submit" id="p_save">שמירה</button>
+      <button class="btn" type="button" id="pwClose">סגירה</button>
+    </div>
+  </form>
+</dialog>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+(function () {
+  "use strict";
+  // The publishable key is meant to be public: every table and the photo bucket are protected by row-level rules.
+  var SUPABASE_URL = "https://kvdhdxcbxvmjnaezbtwx.supabase.co";
+  var SUPABASE_KEY = "sb_publishable_7s4w3CA_cjgQsPkvkPAN6w_cFbs45Hs";
+  var BUCKET = "repair-photos";
+  var STATUS = { open: "פתוח", progress: "בטיפול", done: "תוקן" };
+  var ROLES = { admin: "מנהל", staff: "איש צוות", disabled: "חסום" };
+
+  var $ = function (id) { return document.getElementById(id); };
+  function h(tag, props) {
+    var el = document.createElement(tag), i, k;
+    if (props) for (k in props) {
+      if (k === "text") el.textContent = props[k];
+      else if (k === "class") el.className = props[k];
+      else if (k.slice(0, 2) === "on") el.addEventListener(k.slice(2), props[k]);
+      else el.setAttribute(k, props[k]);
+    }
+    for (i = 2; i < arguments.length; i++) if (arguments[i]) el.appendChild(arguments[i]);
+    return el;
+  }
+  function fmtDate(iso) { return iso && /^\d{4}-\d{2}-\d{2}/.test(iso) ? iso.slice(8, 10) + "/" + iso.slice(5, 7) + "/" + iso.slice(0, 4) : ""; }
+  function today() { var d = new Date(); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); }
+  function msg(id, text) { var e = $(id); e.textContent = text || ""; e.hidden = !text; }
+  function show(screen) { ["scrLoading", "scrAuth", "scrBlocked", "scrMain"].forEach(function (s) { $(s).hidden = s !== screen; }); }
+
+  if (!window.supabase) { $("scrLoading").textContent = "לא ניתן לטעון את המערכת. בדקו את החיבור לאינטרנט ורעננו את הדף."; return; }
+  var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+  var me = null;                 // profile row of the signed-in user
+  var rows = [], statusFilter = "all", editing = null, urls = {}, channel = null, setupMode = false;
+
+  // ---------- server function ----------
+  var FN_ERR = {
+    weak_password: "הסיסמה קצרה מדי. צריך 8 תווים לפחות.", bad_email: "כתובת האימייל לא תקינה.",
+    already_set_up: "המערכת כבר הוגדרה. היכנסו עם המשתמש הקיים.", not_admin: "רק מנהל יכול לבצע את הפעולה.",
+    not_signed_in: "פג תוקף הכניסה. היכנסו שוב.", cannot_change_self: "אי אפשר לשנות את ההרשאה של עצמך."
+  };
+  function fn(body) {
+    return sb.auth.getSession().then(function (r) {
+      var s = r.data.session;
+      return fetch(SUPABASE_URL + "/functions/v1/admin-users", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", apikey: SUPABASE_KEY, Authorization: "Bearer " + (s ? s.access_token : SUPABASE_KEY) },
+        body: JSON.stringify(body)
+      });
+    }).then(function (res) {
+      return res.json().catch(function () { return { error: "server_error" }; }).then(function (j) {
+        if (!res.ok) {
+          var e = j.error || "server_error";
+          throw new Error(FN_ERR[e] || (/already.*registered|already exists/i.test(e) ? "כבר קיים משתמש עם האימייל הזה." : "הפעולה נכשלה. נסו שוב."));
+        }
+        return j;
+      });
+    });
+  }
+
+  // ---------- sign in / first-time setup ----------
+  function showAuth(setup) {
+    setupMode = setup;
+    $("authTitle").textContent = setup ? "הגדרה ראשונית" : "יומן תיקוני דירות";
+    $("authSub").textContent = setup ? "יוצרים את חשבון המנהל הראשון. אחר כך תוכלו להוסיף את שאר הצוות מתוך המערכת." : "כניסה לצוות החברה.";
+    $("authNameWrap").hidden = !setup;
+    $("a_pass").setAttribute("autocomplete", setup ? "new-password" : "current-password");
+    $("authBtn").textContent = setup ? "יצירת חשבון מנהל" : "כניסה";
+    msg("authErr", ""); show("scrAuth");
+  }
+  $("authForm").addEventListener("submit", function (ev) {
+    ev.preventDefault();
+    var email = $("a_email").value.trim(), pass = $("a_pass").value;
+    if (!email || !pass) return msg("authErr", "צריך למלא אימייל וסיסמה.");
+    if (setupMode && pass.length < 8) return msg("authErr", "הסיסמה קצרה מדי. צריך 8 תווים לפחות.");
+    $("authBtn").disabled = true; msg("authErr", "");
+    var p = setupMode ? fn({ action: "setup", email: email, password: pass, full_name: $("a_name").value.trim() }) : Promise.resolve();
+    p.then(function () { return sb.auth.signInWithPassword({ email: email, password: pass }); })
+      .then(function (r) {
+        if (r.error) throw new Error("האימייל או הסיסמה שגויים.");
+        $("a_pass").value = "";
+        return enter();
+      })
+      .catch(function (e) { msg("authErr", e.message || "הכניסה נכשלה."); })
+      .then(function () { $("authBtn").disabled = false; });
+  });
+  function signOut() {
+    if (channel) { sb.removeChannel(channel); channel = null; }
+    me = null; rows = []; urls = {};
+    sb.auth.signOut().then(boot, boot);
+  }
+  $("outBtn").addEventListener("click", signOut);
+  $("blockedOut").addEventListener("click", signOut);
+
+  function boot() {
+    show("scrLoading");
+    sb.auth.getSession().then(function (r) {
+      if (r.data.session) return enter();
+      return fn({ action: "status" }).then(function (s) { showAuth(!!s.needsSetup); }, function () { showAuth(false); });
+    });
+  }
+  function enter() {
+    return sb.auth.getUser().then(function (r) {
+      if (r.error || !r.data.user) return showAuth(false);
+      return sb.from("profiles").select("*").eq("user_id", r.data.user.id).maybeSingle().then(function (p) {
+        if (!p.data || p.data.role === "disabled") { me = null; return show("scrBlocked"); }
+        me = p.data;
+        $("whoami").textContent = "מחוברים בתור " + (me.full_name || me.email) + " · " + ROLES[me.role];
+        $("usersBtn").hidden = me.role !== "admin";
+        show("scrMain");
+        $("list").textContent = ""; $("list").appendChild(h("div", { class: "empty" }, h("strong", { text: "טוען קריאות…" })));
+        subscribe();
+        return load();
+      });
+    });
+  }
+
+  // ---------- data ----------
+  function load() {
+    var all = [], size = 1000;
+    function page(from) {
+      return sb.from("repairs").select("*").order("opened_on", { ascending: false }).order("created_at", { ascending: false }).range(from, from + size - 1)
+        .then(function (r) {
+          if (r.error) throw r.error;
+          all = all.concat(r.data);
+          return r.data.length === size ? page(from + size) : all;
+        });
+    }
+    return page(0).then(function (data) { rows = data; render(); }, function () {
+      $("list").textContent = "";
+      $("list").appendChild(h("div", { class: "empty" }, h("strong", { text: "לא ניתן לטעון את הקריאות" }), document.createTextNode("בדקו את החיבור ורעננו את הדף.")));
+    });
+  }
+  var reloadTimer = null;
+  function subscribe() {
+    if (channel) return;
+    channel = sb.channel("repairs-live").on("postgres_changes", { event: "*", schema: "public", table: "repairs" }, function () {
+      clearTimeout(reloadTimer); reloadTimer = setTimeout(load, 400);
+    }).subscribe();
+  }
+
+  // ---------- list and filters ----------
+  function uniq(list) { var seen = {}, out = []; list.forEach(function (v) { v = (v || "").trim(); if (v && !seen[v]) { seen[v] = 1; out.push(v); } }); return out.sort(function (a, b) { return a.localeCompare(b, "he"); }); }
+  function fillSelect(sel, values, allLabel) {
+    var cur = sel.value; sel.textContent = "";
+    sel.appendChild(h("option", { value: "", text: allLabel }));
+    values.forEach(function (v) { sel.appendChild(h("option", { value: v, text: v })); });
+    sel.value = values.indexOf(cur) !== -1 ? cur : "";
+  }
+  function fillDatalist(dl, values) { dl.textContent = ""; values.forEach(function (v) { dl.appendChild(h("option", { value: v })); }); }
+  function refreshFilters() {
+    var projects = uniq(rows.map(function (r) { return r.project; }));
+    fillSelect($("fProject"), projects, "כל הפרויקטים");
+    var proj = $("fProject").value;
+    var buyers = uniq(rows.filter(function (r) { return !proj || r.project.trim() === proj; }).map(function (r) { return r.buyer; }));
+    fillSelect($("fBuyer"), buyers, "כל הרוכשים");
+    fillDatalist($("dlProjects"), projects);
+    fillDatalist($("dlBuyers"), uniq(rows.map(function (r) { return r.buyer; })));
+  }
+  function baseMatch(r) {   // everything except the status chip, so the chip counts reflect the other filters
+    var proj = $("fProject").value, buyer = $("fBuyer").value, q = $("q").value.trim().toLowerCase();
+    if (proj && r.project.trim() !== proj) return false;
+    if (buyer && r.buyer.trim() !== buyer) return false;
+    if (q && [r.project, r.apartment, r.buyer, r.issue, r.fix_desc, r.fixer, r.notes].join(" ").toLowerCase().indexOf(q) === -1) return false;
+    return true;
+  }
+  function visible() { return rows.filter(function (r) { return baseMatch(r) && (statusFilter === "all" || r.status === statusFilter); }); }
+  function render() {
+    refreshFilters();
+    var base = rows.filter(baseMatch), c = { all: base.length, open: 0, progress: 0, done: 0 };
+    base.forEach(function (r) { if (c[r.status] !== undefined) c[r.status]++; });
+    var box = $("counts"); box.textContent = "";
+    [["all", "הכול"], ["open", STATUS.open], ["progress", STATUS.progress], ["done", STATUS.done]].forEach(function (p) {
+      box.appendChild(h("button", { class: "count", type: "button", "aria-pressed": String(statusFilter === p[0]), onclick: function () { statusFilter = p[0]; render(); } },
+        h("span", { text: p[1] }), h("b", { text: String(c[p[0]]) })));
+    });
+    var shown = visible(), list = $("list"); list.textContent = "";
+    $("shown").textContent = rows.length ? "מוצגות " + shown.length + " מתוך " + rows.length + " קריאות" : "";
+    if (!rows.length) return list.appendChild(h("div", { class: "empty" }, h("strong", { text: "עדיין אין קריאות ביומן" }), document.createTextNode("לחצו על \"קריאה חדשה\" כדי לפתוח את הקריאה הראשונה.")));
+    if (!shown.length) return list.appendChild(h("div", { class: "empty" }, h("strong", { text: "אין קריאות שמתאימות לסינון" }), document.createTextNode("שנו את הסינון או לחצו על \"ניקוי סינון\".")));
+    shown.forEach(function (r) {
+      var n = r.photos_before.length + r.photos_after.length, meta = [];
+      if (r.fix_date) meta.push("תוקן ב-" + fmtDate(r.fix_date));
+      if (r.approved) meta.push("הרוכש אישר");
+      if (n) meta.push(n + " תמונות");
+      var where = h("span", { class: "where", text: r.apartment });
+      if (r.project || r.buyer) where.appendChild(h("small", { text: [r.project, r.buyer].filter(Boolean).join(" · ") }));
+      list.appendChild(h("button", { class: "row", type: "button", onclick: function () { openForm(r); } },
+        h("span", { class: "date", text: fmtDate(r.opened_on) }), where, h("span", { class: "issue", text: r.issue }),
+        h("span", { class: "meta", text: meta.join(" · ") }),
+        h("span", { class: "pill " + (STATUS[r.status] ? r.status : "open"), text: STATUS[r.status] || STATUS.open })));
+    });
+  }
+  $("q").addEventListener("input", render);
+  $("fProject").addEventListener("change", function () { $("fBuyer").value = ""; render(); });
+  $("fBuyer").addEventListener("change", render);
+  $("clearBtn").addEventListener("click", function () { $("q").value = ""; $("fProject").value = ""; $("fBuyer").value = ""; statusFilter = "all"; render(); });
+
+  // ---------- photos ----------
+  function signed(paths) {
+    var need = paths.filter(function (p) { return !urls[p]; });
+    if (!need.length) return Promise.resolve();
+    return sb.storage.from(BUCKET).createSignedUrls(need, 3600).then(function (r) {
+      (r.data || []).forEach(function (x) { if (x.signedUrl && x.path) urls[x.path] = x.signedUrl; });
+    });
+  }
+  function renderPhotos(kind) {
+    var box = $(kind === "before" ? "photosBefore" : "photosAfter"), list = editing[kind];
+    return signed(list).then(function () {
+      box.textContent = "";
+      box.appendChild(h("div", { class: "title", text: kind === "before" ? "תמונות לפני" : "תמונות אחרי" }));
+      var thumbs = h("div", { class: "thumbs" });
+      list.forEach(function (path) {
+        var t = h("div", { class: "thumb" });
+        if (urls[path]) t.appendChild(h("a", { href: urls[path], target: "_blank", rel: "noopener" }, h("img", { src: urls[path], alt: "תמונה", loading: "lazy" })));
+        t.appendChild(h("button", { type: "button", "aria-label": "הסרת התמונה מהקריאה", text: "×",
+          onclick: function () { editing[kind] = editing[kind].filter(function (x) { return x !== path; }); renderPhotos(kind); } }));
+        thumbs.appendChild(t);
+      });
+      var input = h("input", { type: "file", accept: "image/*", multiple: "", id: "file_" + kind });
+      input.addEventListener("change", function () { addPhotos(kind, input); });
+      thumbs.appendChild(h("label", { class: "addphoto" }, input, h("span", { text: "הוספת תמונה" })));
+      box.appendChild(thumbs);
+    });
+  }
+  function shrink(file) {   // phone photos are large; a 1600px JPEG keeps the free storage going far longer
+    if (!window.createImageBitmap) return Promise.resolve(file);
+    return createImageBitmap(file).then(function (bmp) {
+      var s = Math.min(1, 1600 / Math.max(bmp.width, bmp.height)), c = document.createElement("canvas");
+      c.width = Math.round(bmp.width * s); c.height = Math.round(bmp.height * s);
+      c.getContext("2d").drawImage(bmp, 0, 0, c.width, c.height);
+      return new Promise(function (res) { c.toBlob(function (b) { res(b || file); }, "image/jpeg", 0.85); });
+    }).catch(function () { return file; });
+  }
+  function addPhotos(kind, input) {
+    var files = Array.prototype.slice.call(input.files || []);
+    if (!files.length) return;
+    msg("err", ""); $("saveBtn").disabled = true; $("saveBtn").textContent = "מעלה תמונות…";
+    var chain = Promise.resolve();
+    files.forEach(function (f) {
+      chain = chain.then(function () { return shrink(f); }).then(function (blob) {
+        var type = /^image\/(png|jpeg|gif|webp)$/.test(blob.type) ? blob.type : "image/jpeg";
+        var path = editing.id + "/" + kind + "-" + crypto.randomUUID() + "." + (type.split("/")[1] === "jpeg" ? "jpg" : type.split("/")[1]);
+        return sb.storage.from(BUCKET).upload(path, blob, { contentType: type }).then(function (r) {
+          if (r.error) throw r.error;
+          editing[kind].push(path);
+        });
+      });
+    });
+    chain.catch(function () { msg("err", "העלאת התמונה נכשלה. אפשר להעלות JPG, PNG, GIF או WEBP עד 10MB."); })
+      .then(function () { return renderPhotos(kind); })
+      .then(function () { $("saveBtn").disabled = false; $("saveBtn").textContent = "שמירה"; });
+  }
+
+  // ---------- call form ----------
+  function openForm(r) {
+    editing = { id: r ? r.id : crypto.randomUUID(), isNew: !r, before: r ? r.photos_before.slice() : [], after: r ? r.photos_after.slice() : [] };
+    $("dlgTitle").textContent = r ? "עריכת קריאה" : "קריאה חדשה";
+    $("f_date").value = r ? r.opened_on : today();
+    $("f_status").value = r && STATUS[r.status] ? r.status : "open";
+    $("f_project").value = r ? r.project : $("fProject").value;
+    $("f_apartment").value = r ? r.apartment : "";
+    $("f_buyer").value = r ? r.buyer : $("fBuyer").value;
+    $("f_issue").value = r ? r.issue : "";
+    $("f_fixDate").value = r && r.fix_date ? r.fix_date : "";
+    $("f_fixer").value = r ? r.fixer : "";
+    $("f_fixDesc").value = r ? r.fix_desc : "";
+    $("f_notes").value = r ? r.notes : "";
+    $("f_approved").checked = !!(r && r.approved);
+    $("delBtn").hidden = !(r && me.role === "admin");
+    $("delBtn").textContent = "מחיקת הקריאה"; $("delBtn").dataset.armed = "";
+    msg("err", "");
+    var stamp = "";
+    if (r) {
+      var d = new Date(r.updated_at);
+      stamp = "נפתחה על ידי " + (r.created_by_name || "לא ידוע") + " · עודכנה לאחרונה " + d.toLocaleDateString("he-IL") + " " +
+        d.toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit" }) + (r.updated_by_name ? " על ידי " + r.updated_by_name : "");
+    }
+    $("stamp").textContent = stamp;
+    renderPhotos("before"); renderPhotos("after");
+    $("dlg").showModal();
+  }
+  $("newBtn").addEventListener("click", function () { openForm(null); });
+  $("cancelBtn").addEventListener("click", function () { $("dlg").close(); });
+  $("f_status").addEventListener("change", function () { if ($("f_status").value === "done" && !$("f_fixDate").value) $("f_fixDate").value = today(); });
+
+  $("frm").addEventListener("submit", function (ev) {
+    ev.preventDefault();
+    if (!editing) return;
+    var b = {
+      opened_on: $("f_date").value, status: $("f_status").value, project: $("f_project").value.trim(), apartment: $("f_apartment").value.trim(),
+      buyer: $("f_buyer").value.trim(), issue: $("f_issue").value.trim(), fix_date: $("f_fixDate").value || null, fixer: $("f_fixer").value.trim(),
+      fix_desc: $("f_fixDesc").value.trim(), notes: $("f_notes").value.trim(), approved: $("f_approved").checked,
+      photos_before: editing.before.slice(), photos_after: editing.after.slice()
+    };
+    if (!b.opened_on) return msg("err", "חסר תאריך פתיחת הקריאה.");
+    if (!b.apartment) return msg("err", "חסר בניין ודירה.");
+    if (!b.issue) return msg("err", "חסר תיאור הליקוי.");
+    if (b.status === "done" && !b.fix_date) return msg("err", "כדי לסמן \"תוקן\" צריך למלא את תאריך התיקון.");
+    if (b.status === "done" && !b.fix_desc) return msg("err", "כדי לסמן \"תוקן\" צריך לפרט מה תוקן.");
+    if (b.fix_date && b.fix_date < b.opened_on) return msg("err", "תאריך התיקון מוקדם מתאריך פתיחת הקריאה.");
+    $("saveBtn").disabled = true; msg("err", "");
+    var q;
+    if (editing.isNew) { b.id = editing.id; q = sb.from("repairs").insert(b); }
+    else q = sb.from("repairs").update(b).eq("id", editing.id);
+    q.then(function (r) {
+      $("saveBtn").disabled = false;
+      if (r.error) return msg("err", r.error.code === "42501" ? "אין לך הרשאה לשמור קריאות." : "השמירה נכשלה. בדקו את החיבור ונסו שוב.");
+      $("dlg").close(); load();
+    });
+  });
+  $("delBtn").addEventListener("click", function () {
+    var b = $("delBtn");
+    if (!editing || editing.isNew) return;
+    if (!b.dataset.armed) { b.dataset.armed = "1"; b.textContent = "ללחוץ שוב למחיקה סופית"; return; }
+    b.disabled = true;
+    sb.from("repairs").delete().eq("id", editing.id).then(function (r) {
+      b.disabled = false;
+      if (r.error) return msg("err", "המחיקה נכשלה. נסו שוב.");
+      $("dlg").close(); load();
+    });
+  });
+
+  // ---------- export ----------
+  $("exportBtn").addEventListener("click", function () {
+    if (!window.XLSX) return;
+    var data = visible().map(function (r) {
+      return {
+        "תאריך פתיחה": fmtDate(r.opened_on), "סטטוס": STATUS[r.status] || "", "פרויקט": r.project, "בניין ודירה": r.apartment, "רוכש": r.buyer,
+        "תיאור הליקוי": r.issue, "תאריך תיקון": fmtDate(r.fix_date), "מה תוקן": r.fix_desc, "מי תיקן": r.fixer,
+        "הרוכש אישר": r.approved ? "כן" : "לא", "הערות": r.notes, "תמונות לפני": r.photos_before.length, "תמונות אחרי": r.photos_after.length,
+        "נפתחה על ידי": r.created_by_name, "עודכנה על ידי": r.updated_by_name, "עודכנה בתאריך": new Date(r.updated_at).toLocaleString("he-IL")
+      };
+    });
+    if (!data.length) return;
+    var ws = XLSX.utils.json_to_sheet(data);
+    ws["!cols"] = [12, 9, 16, 18, 18, 40, 12, 40, 16, 10, 30, 10, 10, 16, 16, 18].map(function (w) { return { wch: w }; });
+    var wb = XLSX.utils.book_new();
+    wb.Workbook = { Views: [{ RTL: true }] };
+    XLSX.utils.book_append_sheet(wb, ws, "קריאות");
+    XLSX.writeFile(wb, "repairs-" + today() + ".xlsx");
+  });
+
+  // ---------- users (admin) ----------
+  function loadUsers() {
+    return sb.from("profiles").select("*").order("created_at").then(function (r) {
+      var box = $("usersList"); box.textContent = "";
+      (r.data || []).forEach(function (u) {
+        var who = h("div", { class: "who", text: u.full_name || u.email }); who.appendChild(h("small", { text: u.email }));
+        var sel = h("select", { "aria-label": "הרשאה" });
+        Object.keys(ROLES).forEach(function (k) { sel.appendChild(h("option", { value: k, text: ROLES[k] })); });
+        sel.value = u.role; sel.disabled = u.user_id === me.user_id;
+        sel.addEventListener("change", function () {
+          msg("usersErr", ""); msg("usersOk", "");
+          fn({ action: "set_role", user_id: u.user_id, role: sel.value }).then(function () { msg("usersOk", "ההרשאה עודכנה."); }, function (e) { msg("usersErr", e.message); sel.value = u.role; });
+        });
+        var row = h("div", { class: "urow" }, who, sel);
+        var rst = h("button", { class: "btn small rst", type: "button", text: "איפוס סיסמה" });
+        rst.addEventListener("click", function () {
+          if (row.querySelector(".pw")) return;
+          var inp = h("input", { type: "text", placeholder: "סיסמה חדשה (8 תווים לפחות)", autocomplete: "off", "aria-label": "סיסמה חדשה" });
+          var ok = h("button", { class: "btn small", type: "button", text: "שמירה" });
+          ok.addEventListener("click", function () {
+            msg("usersErr", ""); msg("usersOk", "");
+            fn({ action: "set_password", user_id: u.user_id, password: inp.value }).then(function () { msg("usersOk", "הסיסמה של " + (u.full_name || u.email) + " הוחלפה."); pw.remove(); }, function (e) { msg("usersErr", e.message); });
+          });
+          var pw = h("div", { class: "pw" }, inp, ok); row.appendChild(pw); inp.focus();
+        });
+        row.appendChild(rst); box.appendChild(row);
+      });
+    });
+  }
+  $("usersBtn").addEventListener("click", function () { msg("usersErr", ""); msg("usersOk", ""); loadUsers(); $("usersDlg").showModal(); });
+  $("usersClose").addEventListener("click", function () { $("usersDlg").close(); });
+  $("newUserForm").addEventListener("submit", function (ev) {
+    ev.preventDefault(); msg("usersErr", ""); msg("usersOk", "");
+    var email = $("u_email").value.trim(), pass = $("u_pass").value;
+    if (!email) return msg("usersErr", "חסר אימייל.");
+    if (pass.length < 8) return msg("usersErr", "הסיסמה קצרה מדי. צריך 8 תווים לפחות.");
+    $("u_add").disabled = true;
+    fn({ action: "create", email: email, password: pass, full_name: $("u_name").value.trim(), role: $("u_role").value }).then(function () {
+      msg("usersOk", "המשתמש נוסף. מסרו לו את האימייל והסיסמה הראשונית.");
+      $("u_name").value = ""; $("u_email").value = ""; $("u_pass").value = "";
+      return loadUsers();
+    }, function (e) { msg("usersErr", e.message); }).then(function () { $("u_add").disabled = false; });
+  });
+
+  // ---------- own password ----------
+  $("pwBtn").addEventListener("click", function () { $("p_new").value = ""; msg("pwErr", ""); msg("pwOk", ""); $("pwDlg").showModal(); });
+  $("pwClose").addEventListener("click", function () { $("pwDlg").close(); });
+  $("pwForm").addEventListener("submit", function (ev) {
+    ev.preventDefault(); msg("pwErr", ""); msg("pwOk", "");
+    var p = $("p_new").value;
+    if (p.length < 8) return msg("pwErr", "הסיסמה קצרה מדי. צריך 8 תווים לפחות.");
+    $("p_save").disabled = true;
+    sb.auth.updateUser({ password: p }).then(function (r) {
+      $("p_save").disabled = false;
+      if (r.error) return msg("pwErr", "החלפת הסיסמה נכשלה. נסו סיסמה אחרת.");
+      $("p_new").value = ""; msg("pwOk", "הסיסמה הוחלפה.");
+    });
+  });
+
+  boot();
+})();
+</script>
+</body>
+</html>

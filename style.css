@@ -107,6 +107,7 @@ label.check input { width: 18px; height: 18px; accent-color: var(--gold-deep); }
 .pill.open { background: var(--open-bg); color: var(--open-fg); }
 .pill.progress { background: var(--prog-bg); color: var(--prog-fg); }
 .pill.done { background: var(--done-bg); color: var(--done-fg); }
+.pill.not_ours { background: #e8e7e3; color: #4a4d57; }
 @media (max-width: 720px) {
   .row { grid-template-columns: minmax(0, 1fr) auto; }
   .row .date { order: 1; } .row .pill { order: 2; justify-self: end; }

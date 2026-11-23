@@ -7,7 +7,7 @@ if (window.top !== window.self) { document.documentElement.hidden = true; throw 
   var SUPABASE_KEY = "sb_publishable_7s4w3CA_cjgQsPkvkPAN6w_cFbs45Hs";
   var BUCKET = "repair-photos";
   var PHOTO_LINK_SECONDS = 365 * 24 * 60 * 60;   // how long a photo link opened from the app keeps working: one year
-  var STATUS = { open: "פתוח", progress: "בטיפול", done: "תוקן" };
+  var STATUS = { open: "פתוח", progress: "בטיפול", done: "תוקן", not_ours: "לא באחריותנו" };
   var ROLES = { admin: "מנהל", staff: "איש צוות", disabled: "חסום" };
 
   var $ = function (id) { return document.getElementById(id); };
@@ -167,10 +167,10 @@ if (window.top !== window.self) { document.documentElement.hidden = true; throw 
   function visible() { return rows.filter(function (r) { return baseMatch(r) && (statusFilter === "all" || r.status === statusFilter); }); }
   function render() {
     refreshFilters();
-    var base = rows.filter(baseMatch), c = { all: base.length, open: 0, progress: 0, done: 0 };
+    var base = rows.filter(baseMatch), c = { all: base.length, open: 0, progress: 0, done: 0, not_ours: 0 };
     base.forEach(function (r) { if (c[r.status] !== undefined) c[r.status]++; });
     var box = $("counts"); box.textContent = "";
-    [["all", "הכול"], ["open", STATUS.open], ["progress", STATUS.progress], ["done", STATUS.done]].forEach(function (p) {
+    [["all", "הכול"], ["open", STATUS.open], ["progress", STATUS.progress], ["done", STATUS.done], ["not_ours", STATUS.not_ours]].forEach(function (p) {
       box.appendChild(h("button", { class: "count", type: "button", "aria-pressed": String(statusFilter === p[0]), onclick: function () { statusFilter = p[0]; render(); } },
         h("span", { text: p[1] }), h("b", { text: String(c[p[0]]) })));
     });

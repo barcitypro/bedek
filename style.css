@@ -190,3 +190,11 @@ dialog form, dialog .body { display: flex; flex-direction: column; gap: 14px; pa
 .rev ul { margin: 2px 0 0; padding-inline-start: 18px; }
 
 .rgroup { background: #fff; }
+
+/* ---------- login history ---------- */
+#logDlg { width: min(860px, calc(100vw - 24px)); }
+#logList { overflow-x: auto; }
+.lrow { display: grid; grid-template-columns: 130px minmax(110px, 1.2fr) 120px minmax(120px, 1fr) 130px; gap: 6px 12px; padding: 7px 0; border-top: 1px solid var(--line); font-size: 14px; min-width: 640px; }
+.lrow.lhead { border-top: 0; font-size: 12px; font-weight: 700; color: var(--gold-deep); }
+.lrow span { min-width: 0; overflow-wrap: anywhere; }
+.lrow .num { font-variant-numeric: tabular-nums; }

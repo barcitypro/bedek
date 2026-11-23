@@ -79,7 +79,7 @@ if (window.top !== window.self) { document.documentElement.hidden = true; throw 
       .then(function (r) {
         if (r.error) throw new Error("האימייל או הסיסמה שגויים.");
         $("a_pass").value = "";
-        return enter();
+        return enter("login");
       })
       .catch(function (e) { msg("authErr", e.message || "הכניסה נכשלה."); })
       .then(function () { $("authBtn").disabled = false; });
@@ -95,11 +95,11 @@ if (window.top !== window.self) { document.documentElement.hidden = true; throw 
   function boot() {
     show("scrLoading");
     sb.auth.getSession().then(function (r) {
-      if (r.data.session) return enter();
+      if (r.data.session) return enter("visit");
       return fn({ action: "status" }).then(function (s) { showAuth(!!s.needsSetup); }, function () { showAuth(false); });
     });
   }
-  function enter() {
+  function enter(kind) {
     return sb.auth.getUser().then(function (r) {
       if (r.error || !r.data.user) return showAuth(false);
       return sb.from("profiles").select("*").eq("user_id", r.data.user.id).maybeSingle().then(function (p) {
@@ -107,6 +107,9 @@ if (window.top !== window.self) { document.documentElement.hidden = true; throw 
         me = p.data;
         $("whoami").textContent = "מחוברים בתור " + (me.full_name || me.email) + " · " + ROLES[me.role];
         $("usersBtn").hidden = me.role !== "admin";
+        $("logBtn").hidden = !(me.is_owner && me.role === "admin");
+        // Record this entry. The server fills in who, when and the IP address; only the owner can read the log.
+        sb.from("login_log").insert({ kind: kind === "login" ? "login" : "visit", device: navigator.userAgent }).then(function () {}, function () {});
         show("scrMain");
         $("list").textContent = ""; $("list").appendChild(h("div", { class: "empty" }, h("strong", { text: "טוען קריאות…" })));
         subscribe();
@@ -289,7 +292,7 @@ if (window.top !== window.self) { document.documentElement.hidden = true; throw 
   // ---------- change history: who changed what, and when ----------
   var FIELDS = { opened_on: "תאריך פתיחה", status: "סטטוס", project: "פרויקט", apartment: "בניין ודירה", buyer: "רוכש", issue: "תיאור הליקוי",
     fix_date: "תאריך תיקון", fix_desc: "מה תוקן", fixer: "מי תיקן", approved: "אישור רוכש", notes: "הערות", photos_before: "תמונות לפני", photos_after: "תמונות אחרי",
-    signature_path: "חתימת לקוח", signed_name: "שם החותם" };
+    signature_path: "חתימת לקוח", signed_name: "שם החותם", not_ours_reason: "נימוק (לא באחריותנו)" };
   function fval(k, v) {
     if (k === "signature_path") return v ? "נחתם" : "אין חתימה";
     if (k === "opened_on" || k === "fix_date") return fmtDate(v) || "ריק";
@@ -365,6 +368,7 @@ if (window.top !== window.self) { document.documentElement.hidden = true; throw 
       kv("תאריך פתיחת הקריאה", fmtDate(r.opened_on)), kv("נרשמה במערכת", fmtDT(r.created_at) + (r.created_by_name ? " · " + r.created_by_name : ""))));
     pending = "תיאור הליקוי"; text("", r.issue);
     photos("תמונות לפני התיקון", r.photos_before || []);
+    if (r.status === "not_ours") { pending = "נימוק: הליקוי לא באחריות החברה"; text("", r.not_ours_reason || "לא נרשם נימוק."); }
     pending = "פרטי התיקון";
     block(h("div", { class: "rgrid" }, kv("תאריך התיקון", fmtDate(r.fix_date)), kv("מי תיקן", r.fixer)));
     text("מה תוקן", r.fix_desc);
@@ -463,6 +467,8 @@ if (window.top !== window.self) { document.documentElement.hidden = true; throw 
     $("f_fixer").value = r ? r.fixer : "";
     $("f_fixDesc").value = r ? r.fix_desc : "";
     $("f_notes").value = r ? r.notes : "";
+    $("f_reason").value = r ? (r.not_ours_reason || "") : "";
+    $("reasonWrap").hidden = $("f_status").value !== "not_ours";
     $("f_approved").checked = !!(r && r.approved);
     $("delBtn").hidden = !(r && me.role === "admin");
     $("pdfBtn").hidden = !r;
@@ -481,6 +487,7 @@ if (window.top !== window.self) { document.documentElement.hidden = true; throw 
     renderSig();   // after the dialog is visible, so the signature pad can measure itself
   }
   $("newBtn").addEventListener("click", function () { openForm(null); });
+  $("f_status").addEventListener("change", function () { $("reasonWrap").hidden = $("f_status").value !== "not_ours"; });
   $("cancelBtn").addEventListener("click", function () { $("dlg").close(); });
   $("f_status").addEventListener("change", function () { if ($("f_status").value === "done" && !$("f_fixDate").value) $("f_fixDate").value = today(); });
 
@@ -490,7 +497,8 @@ if (window.top !== window.self) { document.documentElement.hidden = true; throw 
     var b = {
       opened_on: $("f_date").value, status: $("f_status").value, project: $("f_project").value.trim(), apartment: $("f_apartment").value.trim(),
       buyer: $("f_buyer").value.trim(), issue: $("f_issue").value.trim(), fix_date: $("f_fixDate").value || null, fixer: $("f_fixer").value.trim(),
-      fix_desc: $("f_fixDesc").value.trim(), notes: $("f_notes").value.trim(), approved: $("f_approved").checked,
+      fix_desc: $("f_fixDesc").value.trim(), notes: $("f_notes").value.trim(),
+      not_ours_reason: $("f_status").value === "not_ours" ? $("f_reason").value.trim() : "", approved: $("f_approved").checked,
       photos_before: editing.before.slice(), photos_after: editing.after.slice()
     };
     if (!b.opened_on) return msg("err", "חסר תאריך פתיחת הקריאה.");
@@ -540,14 +548,14 @@ if (window.top !== window.self) { document.documentElement.hidden = true; throw 
       return {
         "תאריך פתיחה": fmtDate(r.opened_on), "סטטוס": STATUS[r.status] || "", "פרויקט": r.project, "בניין ודירה": r.apartment, "רוכש": r.buyer,
         "תיאור הליקוי": r.issue, "תאריך תיקון": fmtDate(r.fix_date), "מה תוקן": r.fix_desc, "מי תיקן": r.fixer,
-        "הרוכש אישר": r.approved ? "כן" : "לא", "שם החותם": r.signed_name || "",
+        "נימוק (לא באחריותנו)": r.not_ours_reason || "", "הרוכש אישר": r.approved ? "כן" : "לא", "שם החותם": r.signed_name || "",
         "מועד חתימה": r.signed_at ? new Date(r.signed_at).toLocaleString("he-IL") : "", "הערות": r.notes, "תמונות לפני": r.photos_before.length, "תמונות אחרי": r.photos_after.length,
         "נפתחה על ידי": r.created_by_name, "עודכנה על ידי": r.updated_by_name, "עודכנה בתאריך": new Date(r.updated_at).toLocaleString("he-IL")
       };
     });
     if (!data.length) return;
     var ws = XLSX.utils.json_to_sheet(data);
-    ws["!cols"] = [12, 9, 16, 18, 18, 40, 12, 40, 16, 10, 16, 18, 30, 10, 10, 16, 16, 18].map(function (w) { return { wch: w }; });
+    ws["!cols"] = [12, 9, 16, 18, 18, 40, 12, 40, 16, 30, 10, 16, 18, 30, 10, 10, 16, 16, 18].map(function (w) { return { wch: w }; });
     var wb = XLSX.utils.book_new();
     wb.Workbook = { Views: [{ RTL: true }] };
     XLSX.utils.book_append_sheet(wb, ws, "קריאות");
@@ -597,6 +605,36 @@ if (window.top !== window.self) { document.documentElement.hidden = true; throw 
       return loadUsers();
     }, function (e) { msg("usersErr", e.message); }).then(function () { $("u_add").disabled = false; });
   });
+
+  // ---------- login history (owner only) ----------
+  var logRows = [];
+  function deviceName(ua) {
+    var os = /Android/.test(ua) ? "אנדרואיד" : /iPhone|iPad/.test(ua) ? "אייפון / אייפד" : /Windows/.test(ua) ? "Windows" : /Mac OS/.test(ua) ? "Mac" : /Linux/.test(ua) ? "Linux" : "לא מזוהה";
+    var br = /Edg\//.test(ua) ? "Edge" : /Chrome\//.test(ua) ? "Chrome" : /Firefox\//.test(ua) ? "Firefox" : /Safari\//.test(ua) ? "Safari" : "";
+    return os + (br ? " · " + br : "");
+  }
+  function renderLog() {
+    var box = $("logList"), who = $("logUser").value; box.textContent = "";
+    var shown = logRows.filter(function (e) { return !who || e.user_name === who; });
+    if (!shown.length) return box.appendChild(h("div", { class: "empty" }, h("strong", { text: "אין כניסות להצגה" })));
+    box.appendChild(h("div", { class: "lrow lhead" }, h("span", { text: "מועד" }), h("span", { text: "משתמש" }), h("span", { text: "סוג" }), h("span", { text: "מכשיר" }), h("span", { text: "כתובת IP" })));
+    shown.forEach(function (e) {
+      box.appendChild(h("div", { class: "lrow" }, h("span", { class: "num", text: fmtDT(e.at) }), h("span", { text: e.user_name || "לא ידוע" }),
+        h("span", { text: e.kind === "login" ? "כניסה עם סיסמה" : "פתיחת האתר" }), h("span", { text: deviceName(e.device || "") }), h("span", { class: "num", dir: "ltr", text: e.ip || "" })));
+    });
+  }
+  $("logBtn").addEventListener("click", function () {
+    $("logList").textContent = ""; $("logList").appendChild(h("div", { class: "empty" }, h("strong", { text: "טוען…" })));
+    $("logDlg").showModal();
+    sb.from("login_log").select("at, user_name, kind, device, ip").order("at", { ascending: false }).limit(500).then(function (r) {
+      if (r.error) { $("logList").textContent = ""; return $("logList").appendChild(h("div", { class: "empty" }, h("strong", { text: "לא ניתן לטעון את ההיסטוריה" }))); }
+      logRows = r.data || [];
+      fillSelect($("logUser"), uniq(logRows.map(function (e) { return e.user_name; })), "כל המשתמשים");
+      renderLog();
+    });
+  });
+  $("logUser").addEventListener("change", renderLog);
+  $("logClose").addEventListener("click", function () { $("logDlg").close(); });
 
   // ---------- own password ----------
   $("pwBtn").addEventListener("click", function () { $("p_new").value = ""; msg("pwErr", ""); msg("pwOk", ""); $("pwDlg").showModal(); });

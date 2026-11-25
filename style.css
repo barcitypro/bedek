@@ -144,7 +144,7 @@ dialog form, dialog .body { display: flex; flex-direction: column; gap: 14px; pa
 .addphoto:focus-within { outline: 2px solid var(--gold); outline-offset: 2px; }
 .sig #sigNew, .sig #sigDone { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
 .sig #sigNew label { width: 100%; }
-#sigPad { width: 100%; height: 160px; border: 1px solid var(--line); border-radius: 8px; background: #fff; touch-action: none; display: block; cursor: crosshair; }
+.sigpad { width: 100%; height: 160px; border: 1px solid var(--line); border-radius: 8px; background: #fff; touch-action: none; display: block; cursor: crosshair; }
 #sigImg { max-width: 100%; height: 120px; background: #fff; border: 1px solid var(--line); border-radius: 8px; object-fit: contain; }
 .foot { display: flex; gap: 8px; flex-wrap: wrap; justify-content: space-between; align-items: center; padding-top: 4px; }
 .err { color: var(--danger); font-size: 14px; }
@@ -198,3 +198,18 @@ dialog form, dialog .body { display: flex; flex-direction: column; gap: 14px; pa
 .lrow.lhead { border-top: 0; font-size: 12px; font-weight: 700; color: var(--gold-deep); }
 .lrow span { min-width: 0; overflow-wrap: anywhere; }
 .lrow .num { font-variant-numeric: tabular-nums; }
+
+/* ---------- repairs inside a call ---------- */
+#itemsBox { display: flex; flex-direction: column; gap: 12px; }
+.item { border: 1px solid var(--line); border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 12px; background: #fcfbf8; }
+.ihead { display: flex; align-items: center; gap: 10px; }
+.ihead strong { font-family: var(--font-head); font-size: 17px; margin-inline-end: auto; }
+.item .sig { align-items: flex-start; }
+.item .sig input { max-width: 100%; }
+.sigpad.small { height: 120px; }
+.isigimg { max-width: 100%; height: 90px; background: #fff; border: 1px solid var(--line); border-radius: 8px; object-fit: contain; }
+.item textarea { min-height: 56px; }
+.ritem { border: 1px solid #e2dfd6; padding: 8px 12px 10px; }
+.rititle { font-weight: 700; font-size: 16px; margin-bottom: 6px; }
+.risig { margin-top: 6px; }
+.ritem .rsig { height: 80px; }

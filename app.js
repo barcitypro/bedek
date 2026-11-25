@@ -164,7 +164,7 @@ if (window.top !== window.self) { document.documentElement.hidden = true; throw 
     var proj = $("fProject").value, buyer = $("fBuyer").value, q = $("q").value.trim().toLowerCase();
     if (proj && r.project.trim() !== proj) return false;
     if (buyer && r.buyer.trim() !== buyer) return false;
-    if (q && [r.project, r.apartment, r.buyer, r.issue, r.fix_desc, r.fixer, r.notes].join(" ").toLowerCase().indexOf(q) === -1) return false;
+    if (q && [r.project, r.apartment, r.buyer, r.issue, r.fix_desc, r.fixer, r.notes].concat(itemsOf(r).map(function (it) { return [it.title, it.fix_desc, it.fixer].join(" "); })).join(" ").toLowerCase().indexOf(q) === -1) return false;
     return true;
   }
   function visible() { return rows.filter(function (r) { return baseMatch(r) && (statusFilter === "all" || r.status === statusFilter); }); }
@@ -183,8 +183,10 @@ if (window.top !== window.self) { document.documentElement.hidden = true; throw 
     if (!shown.length) return list.appendChild(h("div", { class: "empty" }, h("strong", { text: "אין קריאות שמתאימות לסינון" }), document.createTextNode("שנו את הסינון או לחצו על \"ניקוי סינון\".")));
     shown.forEach(function (r) {
       var n = r.photos_before.length + r.photos_after.length, meta = [];
+      var its = itemsOf(r), nSigned = its.filter(function (it) { return it.signature_path; }).length;
+      if (its.length) meta.push(its.length + " תיקונים" + (nSigned ? " (" + nSigned + " חתומים)" : ""));
       if (r.fix_date) meta.push("תוקן ב-" + fmtDate(r.fix_date));
-      if (r.signature_path) meta.push("נחתם");
+      if (r.signature_path) meta.push("חתימה כללית");
       else if (r.approved) meta.push("הרוכש אישר");
       if (n) meta.push(n + " תמונות");
       var where = h("span", { class: "where", text: r.apartment });
@@ -257,29 +259,33 @@ if (window.top !== window.self) { document.documentElement.hidden = true; throw 
   }
 
   // ---------- customer signature ----------
-  var pad = $("sigPad"), ctx = pad.getContext("2d"), sigDirty = false, drawing = false;
-  function sigReset() {   // ink is always dark on white, whatever the page theme, so the saved image reads the same everywhere
-    var dpr = window.devicePixelRatio || 1, w = pad.clientWidth || 560, hh = pad.clientHeight || 160;
-    pad.width = Math.round(w * dpr); pad.height = Math.round(hh * dpr);
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, w, hh);
-    ctx.strokeStyle = "#111"; ctx.lineWidth = 2.2; ctx.lineCap = "round"; ctx.lineJoin = "round";
-    sigDirty = false;
+  function makePad(canvas) {   // ink is always dark on white, whatever the page theme, so the saved image reads the same everywhere
+    var ctx = canvas.getContext("2d"), dirty = false, drawing = false;
+    function reset() {
+      var dpr = window.devicePixelRatio || 1, w = canvas.clientWidth || 560, hh = canvas.clientHeight || 150;
+      canvas.width = Math.round(w * dpr); canvas.height = Math.round(hh * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, w, hh);
+      ctx.strokeStyle = "#111"; ctx.lineWidth = 2.2; ctx.lineCap = "round"; ctx.lineJoin = "round";
+      dirty = false;
+    }
+    function pos(e) { var r = canvas.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; }
+    canvas.addEventListener("pointerdown", function (e) {
+      e.preventDefault(); try { canvas.setPointerCapture(e.pointerId); } catch (x) {}
+      var p = pos(e); drawing = true; dirty = true;
+      ctx.beginPath(); ctx.moveTo(p[0], p[1]); ctx.lineTo(p[0] + 0.1, p[1] + 0.1); ctx.stroke();
+    });
+    canvas.addEventListener("pointermove", function (e) { if (!drawing) return; var p = pos(e); ctx.lineTo(p[0], p[1]); ctx.stroke(); });
+    ["pointerup", "pointercancel", "pointerleave"].forEach(function (n) { canvas.addEventListener(n, function () { drawing = false; }); });
+    return { reset: reset, isDirty: function () { return dirty; }, blob: function () { return new Promise(function (res) { canvas.toBlob(res, "image/png"); }); } };
   }
-  function sigPos(e) { var r = pad.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; }
-  pad.addEventListener("pointerdown", function (e) {
-    e.preventDefault(); try { pad.setPointerCapture(e.pointerId); } catch (x) {}
-    var p = sigPos(e); drawing = true; sigDirty = true;
-    ctx.beginPath(); ctx.moveTo(p[0], p[1]); ctx.lineTo(p[0] + 0.1, p[1] + 0.1); ctx.stroke();
-  });
-  pad.addEventListener("pointermove", function (e) { if (!drawing) return; var p = sigPos(e); ctx.lineTo(p[0], p[1]); ctx.stroke(); });
-  ["pointerup", "pointercancel", "pointerleave"].forEach(function (n) { pad.addEventListener(n, function () { drawing = false; }); });
-  $("sigClear").addEventListener("click", sigReset);
+  var mainPad = makePad($("sigPad"));
+  $("sigClear").addEventListener("click", mainPad.reset);
   $("sigRemove").addEventListener("click", function () { editing.signature = null; renderSig(); });
   function renderSig() {
     var has = !!editing.signature;
     $("sigDone").hidden = !has; $("sigNew").hidden = has;
-    if (!has) { $("f_signedName").value = ""; sigReset(); return; }
+    if (!has) { $("f_signedName").value = ""; mainPad.reset(); return; }
     var d = editing.signedAt ? new Date(editing.signedAt) : null;
     $("sigInfo").textContent = "נחתם על ידי " + (editing.signedName || "לא צוין") +
       (d ? " בתאריך " + d.toLocaleDateString("he-IL") + " בשעה " + d.toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit" }) : "");
@@ -289,10 +295,67 @@ if (window.top !== window.self) { document.documentElement.hidden = true; throw 
     signed([path]).then(function () { if (editing && editing.signature === path && urls[path]) $("sigImg").src = urls[path]; });
   }
 
+  // ---------- repairs inside a call (each with its own customer signature) ----------
+  function itemsOf(r) { return r && Array.isArray(r.items) ? r.items : []; }
+  function sigText(name, at) { return "נחתם על ידי " + (name || "לא צוין") + (at ? " בתאריך " + fmtDT(at) : ""); }
+  function renumberItems() { editing.itemUi.forEach(function (ui, i) { ui.num.textContent = "תיקון " + (i + 1); }); $("itemsEmpty").hidden = editing.itemUi.length > 0; }
+  function addItemCard(it) {
+    var isSigned = !!it.signature_path, locked = isSigned && me.role !== "admin";   // a signed repair is frozen for everyone but an admin
+    var ui = { item: it, pad: null, name: null, num: h("strong") };
+    ui.title = h("input", { type: "text", autocomplete: "off" }); ui.title.value = it.title || "";
+    ui.desc = h("textarea"); ui.desc.value = it.fix_desc || "";
+    ui.date = h("input", { type: "date" }); ui.date.value = it.fix_date || "";
+    ui.fixer = h("input", { type: "text", autocomplete: "off" }); ui.fixer.value = it.fixer || "";
+    [ui.title, ui.desc, ui.date, ui.fixer].forEach(function (el) { el.disabled = locked; });
+    var head = h("div", { class: "ihead" }, ui.num, isSigned ? h("span", { class: "pill done", text: "נחתם" }) : null);
+    if (!locked) head.appendChild(h("button", { class: "btn small danger", type: "button", text: "הסרת התיקון", onclick: function () {
+      editing.itemUi = editing.itemUi.filter(function (x) { return x !== ui; }); ui.node.remove(); renumberItems();
+    } }));
+    var sigBox = h("div", { class: "sig" }, h("div", { class: "title", text: "חתימת הלקוח על תיקון זה" }));
+    function drawSigArea() {
+      while (sigBox.childNodes.length > 1) sigBox.removeChild(sigBox.lastChild);
+      ui.pad = null; ui.name = null;
+      if (it.signature_path) {
+        var img = h("img", { class: "isigimg", alt: "חתימת הלקוח" }), path = it.signature_path;
+        sigBox.appendChild(img); sigBox.appendChild(h("div", { class: "stamp", text: sigText(it.signed_name, it.signed_at) }));
+        if (me.role === "admin") sigBox.appendChild(h("button", { class: "btn small danger", type: "button", text: "הסרת החתימה", onclick: function () {
+          it.signature_path = null; it.signed_name = ""; it.signed_at = null; drawSigArea();
+        } }));
+        signed([path]).then(function () { if (urls[path]) img.src = urls[path]; });
+      } else {
+        ui.name = h("input", { type: "text", autocomplete: "off", placeholder: "שם החותם (אם ריק, יירשם שם הרוכש)", "aria-label": "שם החותם" });
+        var cv = h("canvas", { class: "sigpad small", "aria-label": "משטח חתימה לתיקון" }), clear = h("button", { class: "btn small", type: "button", text: "ניקוי החתימה" });
+        sigBox.appendChild(ui.name); sigBox.appendChild(cv); sigBox.appendChild(clear);
+        ui.pad = makePad(cv); clear.addEventListener("click", ui.pad.reset);
+        if (cv.isConnected) ui.pad.reset();
+      }
+    }
+    ui.node = h("div", { class: "item" }, head,
+      h("div", { class: "grid" },
+        h("label", { class: "f full", text: "הליקוי" }, ui.title),
+        h("label", { class: "f full", text: "מה תוקן" }, ui.desc),
+        h("label", { class: "f", text: "תאריך התיקון" }, ui.date),
+        h("label", { class: "f", text: "מי תיקן" }, ui.fixer)),
+      sigBox);
+    $("itemsBox").appendChild(ui.node);
+    editing.itemUi.push(ui);
+    drawSigArea();
+    renumberItems();
+    return ui;
+  }
+  function renderItems() {   // called once the dialog is visible, so each signature pad can measure itself
+    var box = $("itemsBox"); box.textContent = ""; editing.itemUi = [];
+    box.appendChild(h("div", { class: "stamp", id: "itemsEmpty", text: "עדיין לא נוספו תיקונים לקריאה. לחצו על \"הוספת תיקון\"." }));
+    editing.items.forEach(addItemCard);
+    renumberItems();
+  }
+  function blankItem() { return { id: crypto.randomUUID(), title: "", fix_desc: "", fix_date: null, fixer: "", signature_path: null, signed_name: "", signed_at: null }; }
+  $("addItemBtn").addEventListener("click", function () { var ui = addItemCard(blankItem()); ui.title.focus(); });
+
   // ---------- change history: who changed what, and when ----------
-  var FIELDS = { opened_on: "תאריך פתיחה", status: "סטטוס", project: "פרויקט", apartment: "בניין ודירה", buyer: "רוכש", issue: "תיאור הליקוי",
-    fix_date: "תאריך תיקון", fix_desc: "מה תוקן", fixer: "מי תיקן", approved: "אישור רוכש", notes: "הערות", photos_before: "תמונות לפני", photos_after: "תמונות אחרי",
-    signature_path: "חתימת לקוח", signed_name: "שם החותם", not_ours_reason: "נימוק (לא באחריותנו)" };
+  var FIELDS = { opened_on: "תאריך פתיחה", status: "סטטוס", project: "פרויקט", apartment: "בניין ודירה", buyer: "רוכש", issue: "תיאור הקריאה",
+    fix_date: "תאריך תיקון אחרון", fix_desc: "מה תוקן", fixer: "מי תיקן", approved: "אישור רוכש", notes: "הערות", photos_before: "תמונות לפני", photos_after: "תמונות אחרי",
+    signature_path: "חתימה כללית", signed_name: "שם החותם (חתימה כללית)", not_ours_reason: "נימוק (לא באחריותנו)" };
   function fval(k, v) {
     if (k === "signature_path") return v ? "נחתם" : "אין חתימה";
     if (k === "opened_on" || k === "fix_date") return fmtDate(v) || "ריק";
@@ -301,6 +364,26 @@ if (window.top !== window.self) { document.documentElement.hidden = true; throw 
     if (k.indexOf("photos_") === 0) return (Array.isArray(v) ? v.length : 0) + " תמונות";
     v = v == null ? "" : String(v);
     return v ? (v.length > 80 ? v.slice(0, 80) + "…" : v) : "ריק";
+  }
+  var IFIELDS = { title: "הליקוי", fix_desc: "מה תוקן", fix_date: "תאריך תיקון", fixer: "מי תיקן" };
+  function itemsDiff(a, b) {
+    a = Array.isArray(a) ? a : []; b = Array.isArray(b) ? b : [];
+    var lines = [];
+    b.forEach(function (it, i) {
+      var old = a.filter(function (x) { return x.id === it.id; })[0], label = "תיקון " + (i + 1);
+      if (!old) {
+        lines.push(label + " נוסף: " + fval("title", it.title || it.fix_desc));
+        if (it.signature_path) lines.push(label + " – חתימת לקוח: נחתם" + (it.signed_name ? " (" + it.signed_name + ")" : ""));
+        return;
+      }
+      Object.keys(IFIELDS).forEach(function (k) {
+        if ((old[k] || "") !== (it[k] || "")) lines.push(label + " – " + IFIELDS[k] + ": " + fval(k, old[k]) + " ← " + fval(k, it[k]));
+      });
+      if ((old.signature_path || "") !== (it.signature_path || ""))
+        lines.push(label + " – חתימת לקוח: " + fval("signature_path", old.signature_path) + " ← " + fval("signature_path", it.signature_path) + (it.signature_path && it.signed_name ? " (" + it.signed_name + ")" : ""));
+    });
+    a.forEach(function (old) { if (!b.some(function (x) { return x.id === old.id; })) lines.push("תיקון הוסר: " + fval("title", old.title || old.fix_desc)); });
+    return lines;
   }
   function loadHistory(id) {
     var box = $("histList"); box.textContent = ""; $("hist").hidden = true; $("hist").open = false;
@@ -327,9 +410,12 @@ if (window.top !== window.self) { document.documentElement.hidden = true; throw 
       var cur = e.row_data || {}, lines = [];
       if (e.action === "INSERT") lines.push("הקריאה נפתחה");
       else if (e.action === "DELETE") lines.push("הקריאה נמחקה");
-      else if (prev) Object.keys(FIELDS).forEach(function (k) {
-        if (JSON.stringify(prev[k]) !== JSON.stringify(cur[k])) lines.push(FIELDS[k] + ": " + fval(k, prev[k]) + " ← " + fval(k, cur[k]));
-      });
+      else if (prev) {
+        Object.keys(FIELDS).forEach(function (k) {
+          if (JSON.stringify(prev[k]) !== JSON.stringify(cur[k])) lines.push(FIELDS[k] + ": " + fval(k, prev[k]) + " ← " + fval(k, cur[k]));
+        });
+        lines = lines.concat(itemsDiff(prev.items, cur.items));
+      }
       if (!lines.length) lines.push("נשמרה ללא שינוי בשדות");
       items.push({ hd: fmtDT(e.changed_at) + " · " + (e.changed_by_name || "לא ידוע"), lines: lines });
       prev = cur;
@@ -359,26 +445,39 @@ if (window.top !== window.self) { document.documentElement.hidden = true; throw 
     }
     var st = STATUS[r.status] ? r.status : "open";
     block(h("div", { class: "rhead" },
-      h("img", { src: "logo.png?v=7", alt: "" }),
+      h("img", { src: "logo.png?v=10", alt: "" }),
       h("div", { class: "rtitle" }, h("div", { class: "rname", text: "מחלקת בדק סיטי פרוייקטים" }), h("div", { class: "rdoc", text: "דוח קריאת שירות" }),
         h("div", { class: "rmeta", text: "הופק בתאריך " + fmtDT(new Date().toISOString()) + (me ? " על ידי " + (me.full_name || me.email) : "") })),
       h("span", { class: "pill " + st, text: STATUS[st] })));
     block(h("div", { class: "rgrid" },
       kv("פרויקט", r.project), kv("בניין ודירה", r.apartment), kv("שם הרוכש", r.buyer), kv("סטטוס", STATUS[st]),
       kv("תאריך פתיחת הקריאה", fmtDate(r.opened_on)), kv("נרשמה במערכת", fmtDT(r.created_at) + (r.created_by_name ? " · " + r.created_by_name : ""))));
-    pending = "תיאור הליקוי"; text("", r.issue);
+    pending = "תיאור הקריאה"; text("", r.issue);
     photos("תמונות לפני התיקון", r.photos_before || []);
     if (r.status === "not_ours") { pending = "נימוק: הליקוי לא באחריות החברה"; text("", r.not_ours_reason || "לא נרשם נימוק."); }
-    pending = "פרטי התיקון";
-    block(h("div", { class: "rgrid" }, kv("תאריך התיקון", fmtDate(r.fix_date)), kv("מי תיקן", r.fixer)));
-    text("מה תוקן", r.fix_desc);
+    var its = itemsOf(r);
+    if (its.length) {
+      pending = "תיקונים (" + its.length + ")";
+      its.forEach(function (it, i) {
+        var sigEl = it.signature_path
+          ? h("div", { class: "risig" },
+              imgUrls[it.signature_path] ? h("img", { class: "rsig", src: imgUrls[it.signature_path], alt: "" }) : h("div", { class: "rmissing", text: "תמונת החתימה לא זמינה" }),
+              h("div", { class: "rk", text: "חתימת הלקוח על תיקון זה: " + sigText(it.signed_name, it.signed_at) }))
+          : h("div", { class: "rk", text: "הלקוח לא חתם על תיקון זה." });
+        block(h("div", { class: "ritem" },
+          h("div", { class: "rititle", text: "תיקון " + (i + 1) + (it.title ? ": " + it.title : "") }),
+          h("div", { class: "rgrid" }, kv("תאריך התיקון", fmtDate(it.fix_date)), kv("מי תיקן", it.fixer)),
+          h("div", { class: "rk", text: "מה תוקן" }), h("p", { class: "rtext", text: it.fix_desc || "—" }),
+          sigEl));
+      });
+    } else { pending = "תיקונים"; text("", "לא נרשמו תיקונים בקריאה זו."); }
     photos("תמונות אחרי התיקון", r.photos_after || []);
     if (r.notes) { pending = "הערות"; text("", r.notes); }
-    pending = "אישור וחתימת הלקוח";
+    pending = "חתימה כללית של הלקוח על כל התיקונים";
     if (r.signature_path) block(
       imgUrls[r.signature_path] ? h("img", { class: "rsig", src: imgUrls[r.signature_path], alt: "" }) : h("div", { class: "rmissing", text: "תמונת החתימה לא זמינה" }),
       h("p", { class: "rtext", text: "נחתם על ידי " + (r.signed_name || "לא צוין") + " בתאריך " + fmtDT(r.signed_at) + ". מועד החתימה נרשם על ידי השרת." }));
-    else text("", r.approved ? "הרוכש אישר את התיקון (סומן על ידי הצוות, ללא חתימה)." : "הלקוח טרם חתם.");
+    else text("", r.approved ? "הרוכש אישר את התיקונים (סומן על ידי הצוות, ללא חתימה כללית)." : "אין חתימה כללית.");
     if (hist.length) {
       pending = "היסטוריית שינויים";
       hist.forEach(function (it) {
@@ -441,7 +540,8 @@ if (window.top !== window.self) { document.documentElement.hidden = true; throw 
     if (!r) return;
     if (!window.html2canvas || !window.jspdf) return msg("err", "רכיב ה-PDF לא נטען. רעננו את הדף ונסו שוב.");
     btn.disabled = true; btn.textContent = "מכין PDF…"; msg("err", "");
-    var paths = (r.photos_before || []).concat(r.photos_after || []).concat(r.signature_path ? [r.signature_path] : []), map = {}, made = [];
+    var paths = (r.photos_before || []).concat(r.photos_after || []).concat(r.signature_path ? [r.signature_path] : [])
+      .concat(itemsOf(r).map(function (it) { return it.signature_path; }).filter(Boolean)), map = {}, made = [];
     Promise.all(paths.map(function (p) {
       return sb.storage.from(BUCKET).download(p).then(function (res) { if (!res.error && res.data) { map[p] = URL.createObjectURL(res.data); made.push(map[p]); } });
     })).then(function () {
@@ -455,7 +555,9 @@ if (window.top !== window.self) { document.documentElement.hidden = true; throw 
   // ---------- call form ----------
   function openForm(r) {
     editing = { id: r ? r.id : crypto.randomUUID(), isNew: !r, before: r ? r.photos_before.slice() : [], after: r ? r.photos_after.slice() : [],
-      record: r || null, signature: r ? r.signature_path : null, signedName: r ? r.signed_name : "", signedAt: r ? r.signed_at : null };
+      record: r || null, itemUi: [],
+      items: itemsOf(r).length ? JSON.parse(JSON.stringify(r.items)) : [blankItem()],
+      signature: r ? r.signature_path : null, signedName: r ? r.signed_name : "", signedAt: r ? r.signed_at : null };
     $("dlgTitle").textContent = r ? "עריכת קריאה" : "קריאה חדשה";
     $("f_date").value = r ? r.opened_on : today();
     $("f_status").value = r && STATUS[r.status] ? r.status : "open";
@@ -463,9 +565,6 @@ if (window.top !== window.self) { document.documentElement.hidden = true; throw 
     $("f_apartment").value = r ? r.apartment : "";
     $("f_buyer").value = r ? r.buyer : $("fBuyer").value;
     $("f_issue").value = r ? r.issue : "";
-    $("f_fixDate").value = r && r.fix_date ? r.fix_date : "";
-    $("f_fixer").value = r ? r.fixer : "";
-    $("f_fixDesc").value = r ? r.fix_desc : "";
     $("f_notes").value = r ? r.notes : "";
     $("f_reason").value = r ? (r.not_ours_reason || "") : "";
     $("reasonWrap").hidden = $("f_status").value !== "not_ours";
@@ -484,41 +583,62 @@ if (window.top !== window.self) { document.documentElement.hidden = true; throw 
     if (r) loadHistory(r.id); else { $("hist").hidden = true; $("histList").textContent = ""; }
     renderPhotos("before"); renderPhotos("after");
     $("dlg").showModal();
-    renderSig();   // after the dialog is visible, so the signature pad can measure itself
+    renderSig();   // after the dialog is visible, so the signature pads can measure themselves
+    renderItems();
   }
   $("newBtn").addEventListener("click", function () { openForm(null); });
   $("f_status").addEventListener("change", function () { $("reasonWrap").hidden = $("f_status").value !== "not_ours"; });
   $("cancelBtn").addEventListener("click", function () { $("dlg").close(); });
-  $("f_status").addEventListener("change", function () { if ($("f_status").value === "done" && !$("f_fixDate").value) $("f_fixDate").value = today(); });
 
   $("frm").addEventListener("submit", function (ev) {
     ev.preventDefault();
     if (!editing) return;
     var b = {
       opened_on: $("f_date").value, status: $("f_status").value, project: $("f_project").value.trim(), apartment: $("f_apartment").value.trim(),
-      buyer: $("f_buyer").value.trim(), issue: $("f_issue").value.trim(), fix_date: $("f_fixDate").value || null, fixer: $("f_fixer").value.trim(),
-      fix_desc: $("f_fixDesc").value.trim(), notes: $("f_notes").value.trim(),
+      buyer: $("f_buyer").value.trim(), issue: $("f_issue").value.trim(), notes: $("f_notes").value.trim(),
       not_ours_reason: $("f_status").value === "not_ours" ? $("f_reason").value.trim() : "", approved: $("f_approved").checked,
       photos_before: editing.before.slice(), photos_after: editing.after.slice()
     };
     if (!b.opened_on) return msg("err", "חסר תאריך פתיחת הקריאה.");
     if (!b.apartment) return msg("err", "חסר בניין ודירה.");
-    if (!b.issue) return msg("err", "חסר תיאור הליקוי.");
-    if (b.status === "done" && !b.fix_date) return msg("err", "כדי לסמן \"תוקן\" צריך למלא את תאריך התיקון.");
-    if (b.status === "done" && !b.fix_desc) return msg("err", "כדי לסמן \"תוקן\" צריך לפרט מה תוקן.");
-    if (b.fix_date && b.fix_date < b.opened_on) return msg("err", "תאריך התיקון מוקדם מתאריך פתיחת הקריאה.");
-    var newSig = !editing.signature && sigDirty, signer = $("f_signedName").value.trim();
-    if (newSig && !signer) return msg("err", "יש חתימה אבל חסר שם החותם.");
+    if (!b.issue) return msg("err", "חסר תיאור הקריאה.");
+
+    // Collect the repairs. A card left completely empty is ignored.
+    var items = [], sigJobs = [], i, ui, it, o, wantsSig, nm;
+    for (i = 0; i < editing.itemUi.length; i++) {
+      ui = editing.itemUi[i]; it = ui.item;
+      o = { id: it.id, title: ui.title.value.trim(), fix_desc: ui.desc.value.trim(), fix_date: ui.date.value || null, fixer: ui.fixer.value.trim(),
+            signature_path: it.signature_path || null, signed_name: it.signed_name || "" };
+      wantsSig = !it.signature_path && ui.pad && ui.pad.isDirty();
+      if (!o.title && !o.fix_desc && !o.fix_date && !o.fixer && !wantsSig && !o.signature_path) continue;
+      if (!o.title && !o.fix_desc) return msg("err", "בתיקון " + (i + 1) + " חסר תיאור: מה הליקוי או מה תוקן.");
+      if (o.fix_date && o.fix_date < b.opened_on) return msg("err", "בתיקון " + (i + 1) + " תאריך התיקון מוקדם מתאריך פתיחת הקריאה.");
+      if (wantsSig) {
+        nm = ui.name.value.trim() || b.buyer;
+        if (!nm) return msg("err", "בתיקון " + (i + 1) + " יש חתימה אבל חסר שם החותם.");
+        sigJobs.push({ o: o, pad: ui.pad, name: nm });
+      }
+      items.push(o);
+    }
+    if (b.status === "done" && !items.some(function (x) { return x.fix_date && x.fix_desc; }))
+      return msg("err", "כדי לסמן \"תוקן\" צריך לפחות תיקון אחד עם תאריך תיקון ופירוט של מה תוקן.");
+    var newSig = !editing.signature && mainPad.isDirty(), signer = $("f_signedName").value.trim() || b.buyer;
+    if (newSig && !signer) return msg("err", "יש חתימה כללית אבל חסר שם החותם.");
+
     $("saveBtn").disabled = true; msg("err", "");
+    b.items = items;
     b.signature_path = editing.signature || null;
-    var pre = Promise.resolve();
-    if (newSig) pre = new Promise(function (res) { pad.toBlob(res, "image/png"); }).then(function (blob) {
-      var path = editing.id + "/signature-" + crypto.randomUUID() + ".png";
-      return sb.storage.from(BUCKET).upload(path, blob, { contentType: "image/png" }).then(function (r) {
-        if (r.error) throw r.error;
-        b.signature_path = path; b.signed_name = signer; b.approved = true;
+    function uploadSig(pad, name) {
+      return pad.blob().then(function (blob) {
+        var path = editing.id + "/" + name + "-" + crypto.randomUUID() + ".png";
+        return sb.storage.from(BUCKET).upload(path, blob, { contentType: "image/png" }).then(function (r) { if (r.error) throw r.error; return path; });
       });
+    }
+    var pre = Promise.resolve();
+    sigJobs.forEach(function (job) {
+      pre = pre.then(function () { return uploadSig(job.pad, "repair-signature"); }).then(function (path) { job.o.signature_path = path; job.o.signed_name = job.name; });
     });
+    if (newSig) pre = pre.then(function () { return uploadSig(mainPad, "signature"); }).then(function (path) { b.signature_path = path; b.signed_name = signer; b.approved = true; });
     pre.then(function () {
       if (editing.isNew) { b.id = editing.id; return sb.from("repairs").insert(b); }
       return sb.from("repairs").update(b).eq("id", editing.id);
@@ -526,7 +646,7 @@ if (window.top !== window.self) { document.documentElement.hidden = true; throw 
       if (r.error) throw r.error;
       $("dlg").close(); load();
     }).catch(function (e) {
-      msg("err", e && e.code === "42501" ? "אין לך הרשאה לבצע את השינוי הזה." : "השמירה נכשלה. בדקו את החיבור ונסו שוב.");
+      msg("err", e && e.code === "42501" ? "אין לך הרשאה לבצע את השינוי הזה. תיקון חתום יכול לשנות רק מנהל." : "השמירה נכשלה. בדקו את החיבור ונסו שוב.");
     }).then(function () { $("saveBtn").disabled = false; });
   });
   $("delBtn").addEventListener("click", function () {
@@ -547,15 +667,18 @@ if (window.top !== window.self) { document.documentElement.hidden = true; throw 
     var data = visible().map(function (r) {
       return {
         "תאריך פתיחה": fmtDate(r.opened_on), "סטטוס": STATUS[r.status] || "", "פרויקט": r.project, "בניין ודירה": r.apartment, "רוכש": r.buyer,
-        "תיאור הליקוי": r.issue, "תאריך תיקון": fmtDate(r.fix_date), "מה תוקן": r.fix_desc, "מי תיקן": r.fixer,
-        "נימוק (לא באחריותנו)": r.not_ours_reason || "", "הרוכש אישר": r.approved ? "כן" : "לא", "שם החותם": r.signed_name || "",
-        "מועד חתימה": r.signed_at ? new Date(r.signed_at).toLocaleString("he-IL") : "", "הערות": r.notes, "תמונות לפני": r.photos_before.length, "תמונות אחרי": r.photos_after.length,
+        "תיאור הקריאה": r.issue, "תאריך תיקון אחרון": fmtDate(r.fix_date),
+        "תיקונים": itemsOf(r).map(function (it, i) {
+          return (i + 1) + ". " + [it.title, it.fix_desc, fmtDate(it.fix_date), it.fixer, it.signature_path ? "נחתם: " + (it.signed_name || "") + " " + fmtDT(it.signed_at) : "לא נחתם"].filter(Boolean).join(" | ");
+        }).join("\n"), "מספר תיקונים": itemsOf(r).length,
+        "נימוק (לא באחריותנו)": r.not_ours_reason || "", "הרוכש אישר": r.approved ? "כן" : "לא", "חתימה כללית: שם החותם": r.signed_name || "",
+        "חתימה כללית: מועד": r.signed_at ? new Date(r.signed_at).toLocaleString("he-IL") : "", "הערות": r.notes, "תמונות לפני": r.photos_before.length, "תמונות אחרי": r.photos_after.length,
         "נפתחה על ידי": r.created_by_name, "עודכנה על ידי": r.updated_by_name, "עודכנה בתאריך": new Date(r.updated_at).toLocaleString("he-IL")
       };
     });
     if (!data.length) return;
     var ws = XLSX.utils.json_to_sheet(data);
-    ws["!cols"] = [12, 9, 16, 18, 18, 40, 12, 40, 16, 30, 10, 16, 18, 30, 10, 10, 16, 16, 18].map(function (w) { return { wch: w }; });
+    ws["!cols"] = [12, 9, 16, 18, 18, 40, 12, 70, 8, 30, 10, 16, 18, 30, 10, 10, 16, 16, 18].map(function (w) { return { wch: w }; });
     var wb = XLSX.utils.book_new();
     wb.Workbook = { Views: [{ RTL: true }] };
     XLSX.utils.book_append_sheet(wb, ws, "קריאות");
@@ -651,5 +774,21 @@ if (window.top !== window.self) { document.documentElement.hidden = true; throw 
     });
   });
 
+  // Local preview only: on localhost, ?demo shows the screens with sample data and no server access, so the layout can be checked without an account.
+  if ((location.hostname === "localhost" || location.hostname === "127.0.0.1") && location.search.indexOf("demo") !== -1) {
+    me = { user_id: "demo", email: "demo@example.com", full_name: "תצוגה מקדימה", role: location.search.indexOf("demo=staff") !== -1 ? "staff" : "admin", is_owner: false };
+    var demoNow = new Date().toISOString();
+    rows = [{ id: "00000000-0000-0000-0000-00000000d001", opened_on: "2026-11-10", status: "progress", project: "פרויקט לדוגמה", apartment: "בניין 2, דירה 14", buyer: "ישראל ישראלי",
+      issue: "כמה ליקויים שדווחו אחרי הכניסה לדירה", fix_date: "2026-11-14", fix_desc: "", fixer: "", approved: false, notes: "", not_ours_reason: "",
+      photos_before: [], photos_after: [], signature_path: null, signed_name: "", signed_at: null,
+      items: [
+        { id: "00000000-0000-0000-0000-00000000d101", title: "נזילה מתחת לכיור במטבח", fix_desc: "הוחלף סיפון ואטם", fix_date: "2026-11-14", fixer: "אינסטלטור", signature_path: "demo/sig.png", signed_name: "ישראל ישראלי", signed_at: demoNow },
+        { id: "00000000-0000-0000-0000-00000000d102", title: "סדק בטיח בחדר השינה", fix_desc: "", fix_date: null, fixer: "", signature_path: null, signed_name: "", signed_at: null }],
+      created_at: demoNow, created_by_name: "תצוגה מקדימה", updated_at: demoNow, updated_by_name: "תצוגה מקדימה" }];
+    $("whoami").textContent = "תצוגה מקדימה מקומית, ללא חיבור לנתונים";
+    $("usersBtn").hidden = me.role !== "admin";
+    show("scrMain"); render();
+    return;
+  }
   boot();
 })();

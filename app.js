@@ -299,7 +299,7 @@ if (window.top !== window.self) { document.documentElement.hidden = true; throw 
 
   // ---------- remote approval: a personal link the customer opens and signs on their own phone ----------
   // Only a hash of the link's secret is stored, so the link itself can be shown once, right after it is created.
-  var APPROVE_URL = "https://barcitypro.github.io/ishur/";   // the customer's page lives on its own site, apart from the staff app
+  var APPROVE_URL = "https://ishur.citypro.co.il/";   // the customer's page lives on its own site, apart from the staff app
   function remoteState(text, link) {
     $("remoteInfo").textContent = text;
     $("remoteLinkRow").hidden = !link;
@@ -571,7 +571,7 @@ if (window.top !== window.self) { document.documentElement.hidden = true; throw 
     }
     var st = STATUS[r.status] ? r.status : "open";
     block(h("div", { class: "rhead" },
-      h("img", { src: "logo.png?v=14", alt: "" }),
+      h("img", { src: "logo.png?v=15", alt: "" }),
       h("div", { class: "rtitle" }, h("div", { class: "rname", text: "מחלקת בדק סיטי פרוייקטים" }), h("div", { class: "rdoc", text: "דוח קריאת שירות" }),
         h("div", { class: "rmeta", text: "הופק בתאריך " + fmtDT(new Date().toISOString()) + (me ? " על ידי " + (me.full_name || me.email) : "") })),
       h("span", { class: "pill " + st, text: STATUS[st] })));

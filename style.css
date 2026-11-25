@@ -215,3 +215,24 @@ dialog form, dialog .body { display: flex; flex-direction: column; gap: 14px; pa
 .ritem .rsig { height: 80px; }
 
 .item .photos { align-self: stretch; }
+
+/* ---------- remote approval ---------- */
+.remote { align-self: stretch; border: 1px dashed var(--gold); background: var(--gold-wash); border-radius: 10px; padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+.remote .title { font-weight: 700; color: var(--gold-deep); }
+.remote .stamp { margin: 0; }
+.remote-link { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.remote-link input { flex: 1 1 220px; min-width: 0; font-size: 13px; }
+a.btn { text-decoration: none; color: inherit; display: inline-block; }
+
+/* the customer's page */
+.approve { max-width: 720px; }
+.panel { background: var(--surface); border-radius: 14px; box-shadow: var(--shadow); padding: 18px; display: flex; flex-direction: column; gap: 12px; }
+.panel h2 { font-size: 20px; }
+.lead { margin: 0; }
+#aItems { display: flex; flex-direction: column; gap: 12px; }
+.approve .item { background: var(--surface); box-shadow: var(--shadow); border-color: transparent; }
+.approve .ihead strong { overflow-wrap: anywhere; }
+.approve a.thumb { display: block; width: 104px; height: 104px; }
+.approve .btn.primary { padding: 12px 16px; font-size: 16px; }
+.approve label.check { align-items: flex-start; }
+.approve label.check input { flex: none; margin-top: 3px; }

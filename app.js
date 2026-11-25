@@ -37,12 +37,13 @@ if (window.top !== window.self) { document.documentElement.hidden = true; throw 
   var FN_ERR = {
     weak_password: "הסיסמה קצרה מדי. צריך 8 תווים לפחות.", bad_email: "כתובת האימייל לא תקינה.",
     already_set_up: "המערכת כבר הוגדרה. היכנסו עם המשתמש הקיים.", not_admin: "רק מנהל יכול לבצע את הפעולה.",
-    not_signed_in: "פג תוקף הכניסה. היכנסו שוב.", cannot_change_self: "אי אפשר לשנות את ההרשאה של עצמך."
+    not_signed_in: "פג תוקף הכניסה. היכנסו שוב.", cannot_change_self: "אי אפשר לשנות את ההרשאה של עצמך.",
+    already_signed: "הקריאה כבר חתומה בחתימה כללית.", not_found: "הקריאה לא נמצאה. שמרו אותה ונסו שוב."
   };
-  function fn(body) {
+  function fn(body, name) {
     return sb.auth.getSession().then(function (r) {
       var s = r.data.session;
-      return fetch(SUPABASE_URL + "/functions/v1/admin-users", {
+      return fetch(SUPABASE_URL + "/functions/v1/" + (name || "admin-users"), {
         method: "POST",
         headers: { "Content-Type": "application/json", apikey: SUPABASE_KEY, Authorization: "Bearer " + (s ? s.access_token : SUPABASE_KEY) },
         body: JSON.stringify(body)
@@ -186,7 +187,7 @@ if (window.top !== window.self) { document.documentElement.hidden = true; throw 
       var its = itemsOf(r), nSigned = its.filter(function (it) { return it.signature_path; }).length;
       if (its.length) meta.push(its.length + " תיקונים" + (nSigned ? " (" + nSigned + " חתומים)" : ""));
       if (r.fix_date) meta.push("תוקן ב-" + fmtDate(r.fix_date));
-      if (r.signature_path) meta.push("חתימה כללית");
+      if (r.signature_path) meta.push(r.signed_remote ? "חתימה כללית (מרחוק)" : "חתימה כללית");
       else if (r.approved) meta.push("הרוכש אישר");
       if (n) meta.push(n + " תמונות");
       var where = h("span", { class: "where", text: r.apartment });
@@ -285,15 +286,71 @@ if (window.top !== window.self) { document.documentElement.hidden = true; throw 
   function renderSig() {
     var has = !!editing.signature;
     $("sigDone").hidden = !has; $("sigNew").hidden = has;
-    if (!has) { $("f_signedName").value = ""; mainPad.reset(); return; }
+    if (!has) { $("f_signedName").value = ""; mainPad.reset(); renderRemote(); return; }
     var d = editing.signedAt ? new Date(editing.signedAt) : null;
     $("sigInfo").textContent = "נחתם על ידי " + (editing.signedName || "לא צוין") +
-      (d ? " בתאריך " + d.toLocaleDateString("he-IL") + " בשעה " + d.toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit" }) : "");
+      (d ? " בתאריך " + d.toLocaleDateString("he-IL") + " בשעה " + d.toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit" }) : "") +
+      (editing.record && editing.record.signed_remote && editing.signature === editing.record.signature_path ? " · נחתם מרחוק דרך קישור אישי" : "");
     $("sigRemove").hidden = me.role !== "admin";
     $("sigImg").removeAttribute("src");
     var path = editing.signature;
     signed([path]).then(function () { if (editing && editing.signature === path && urls[path]) $("sigImg").src = urls[path]; });
   }
+
+  // ---------- remote approval: a personal link the customer opens and signs on their own phone ----------
+  // Only a hash of the link's secret is stored, so the link itself can be shown once, right after it is created.
+  var APPROVE_URL = new URL("approve.html", location.href.split("#")[0].split("?")[0]).href;
+  function remoteState(text, link) {
+    $("remoteInfo").textContent = text;
+    $("remoteLinkRow").hidden = !link;
+    if (link) {
+      $("remoteLink").value = link;
+      $("remoteWa").href = "https://wa.me/?text=" + encodeURIComponent("שלום, מצורף קישור אישי לאישור התיקונים שבוצעו בדירה. מחלקת בדק סיטי פרוייקטים:\n" + link);
+    }
+  }
+  function renderRemote() {
+    var id = editing.id;
+    $("remoteBox").hidden = false; $("remoteRevoke").hidden = true; $("remoteCreate").disabled = editing.isNew;
+    $("remoteCreate").textContent = "יצירת קישור לאישור מרחוק";
+    if (editing.isNew) return remoteState("אפשר לשלוח ללקוח קישור לאישור וחתימה מהטלפון שלו. קודם שומרים את הקריאה, ואז פותחים אותה שוב ויוצרים קישור.", "");
+    remoteState("אפשר לשלוח ללקוח קישור אישי. הוא יראה את התיקונים כפי שנשמרו ויחתום מהטלפון שלו. שמרו שינויים לפני יצירת הקישור.", "");
+    if (me.user_id === "demo") return;
+    sb.from("approval_links").select("created_at, created_by_name, expires_at").eq("repair_id", id).is("used_at", null).is("revoked_at", null)
+      .gt("expires_at", new Date().toISOString()).order("created_at", { ascending: false }).limit(1).then(function (r) {
+        if (!editing || editing.id !== id || r.error || !r.data || !r.data.length || !$("remoteLinkRow").hidden) return;
+        var l = r.data[0];
+        remoteState("קישור פעיל נוצר ב-" + fmtDT(l.created_at) + (l.created_by_name ? " על ידי " + l.created_by_name : "") + ", בתוקף עד " + fmtDate(l.expires_at.slice(0, 10)) +
+          ". הלקוח עדיין לא חתם. הקישור עצמו לא נשמר במערכת: כדי לשלוח שוב, צרו קישור חדש (הקודם יבוטל).", "");
+        $("remoteCreate").textContent = "יצירת קישור חדש"; $("remoteRevoke").hidden = false;
+      });
+  }
+  $("remoteCreate").addEventListener("click", function () {
+    if (!editing || editing.isNew) return;
+    var id = editing.id, btn = $("remoteCreate");
+    msg("err", ""); btn.disabled = true;
+    var p = me.user_id === "demo" ? Promise.resolve({ token: "DEMO-ONLY-0000000000000000000000000000000000", expires_at: new Date(Date.now() + 14 * 864e5).toISOString() })
+      : fn({ action: "create", repair_id: id }, "remote-approval");
+    p.then(function (res) {
+      if (!editing || editing.id !== id) return;
+      remoteState("הקישור מוכן ובתוקף עד " + fmtDate(res.expires_at.slice(0, 10)) + ". שלחו אותו ללקוח עכשיו: מטעמי אבטחה הוא לא יוצג שוב אחרי סגירת החלון. יצירת קישור חדש מבטלת את הקודם.", APPROVE_URL + "#" + res.token);
+      btn.textContent = "יצירת קישור חדש"; $("remoteRevoke").hidden = false;
+    }, function (e) { msg("err", e.message); }).then(function () { btn.disabled = false; });
+  });
+  $("remoteRevoke").addEventListener("click", function () {
+    if (!editing || editing.isNew) return;
+    var id = editing.id; msg("err", "");
+    (me.user_id === "demo" ? Promise.resolve() : fn({ action: "revoke", repair_id: id }, "remote-approval")).then(function () {
+      if (!editing || editing.id !== id) return;
+      $("remoteRevoke").hidden = true; $("remoteCreate").textContent = "יצירת קישור לאישור מרחוק";
+      remoteState("הקישור בוטל. הלקוח כבר לא יכול לחתום דרכו.", "");
+    }, function (e) { msg("err", e.message); });
+  });
+  $("remoteCopy").addEventListener("click", function () {
+    var inp = $("remoteLink"), btn = $("remoteCopy");
+    function ok() { btn.textContent = "הועתק"; setTimeout(function () { btn.textContent = "העתקת הקישור"; }, 1800); }
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(inp.value).then(ok, function () { inp.select(); });
+    else { inp.select(); try { document.execCommand("copy"); ok(); } catch (x) {} }
+  });
 
   // ---------- photo strip for one repair ----------
   function photoStrip(list, label, locked, prefix) {
@@ -403,12 +460,12 @@ if (window.top !== window.self) { document.documentElement.hidden = true; throw 
   // ---------- change history: who changed what, and when ----------
   var FIELDS = { opened_on: "תאריך פתיחה", status: "סטטוס", project: "פרויקט", apartment: "בניין ודירה", buyer: "רוכש", issue: "תיאור הקריאה",
     fix_date: "תאריך תיקון אחרון", fix_desc: "מה תוקן", fixer: "מי תיקן", approved: "אישור רוכש", notes: "הערות", photos_before: "תמונות לפני", photos_after: "תמונות אחרי",
-    signature_path: "חתימה כללית", signed_name: "שם החותם (חתימה כללית)", not_ours_reason: "נימוק (לא באחריותנו)" };
+    signature_path: "חתימה כללית", signed_name: "שם החותם (חתימה כללית)", not_ours_reason: "נימוק (לא באחריותנו)", signed_remote: "חתימה כללית מרחוק" };
   function fval(k, v) {
     if (k === "signature_path") return v ? "נחתם" : "אין חתימה";
     if (k === "opened_on" || k === "fix_date") return fmtDate(v) || "ריק";
     if (k === "status") return STATUS[v] || String(v || "ריק");
-    if (k === "approved") return v ? "כן" : "לא";
+    if (k === "approved" || k === "signed_remote") return v ? "כן" : "לא";
     if (k.indexOf("photos_") === 0) return (Array.isArray(v) ? v.length : 0) + " תמונות";
     v = v == null ? "" : String(v);
     return v ? (v.length > 80 ? v.slice(0, 80) + "…" : v) : "ריק";
@@ -473,7 +530,7 @@ if (window.top !== window.self) { document.documentElement.hidden = true; throw 
     });
     return items;
   }
-  function buildReport(r, hist, imgUrls) {
+  function buildReport(r, hist, imgUrls, link) {
     var root = h("div", { class: "report", dir: "rtl", lang: "he" }), pending = null;
     function block() {
       var b = h("div", { class: "rblock" });
@@ -496,7 +553,7 @@ if (window.top !== window.self) { document.documentElement.hidden = true; throw 
     }
     var st = STATUS[r.status] ? r.status : "open";
     block(h("div", { class: "rhead" },
-      h("img", { src: "logo.png?v=11", alt: "" }),
+      h("img", { src: "logo.png?v=12", alt: "" }),
       h("div", { class: "rtitle" }, h("div", { class: "rname", text: "מחלקת בדק סיטי פרוייקטים" }), h("div", { class: "rdoc", text: "דוח קריאת שירות" }),
         h("div", { class: "rmeta", text: "הופק בתאריך " + fmtDT(new Date().toISOString()) + (me ? " על ידי " + (me.full_name || me.email) : "") })),
       h("span", { class: "pill " + st, text: STATUS[st] })));
@@ -529,7 +586,9 @@ if (window.top !== window.self) { document.documentElement.hidden = true; throw 
     pending = "חתימה כללית של הלקוח על כל התיקונים";
     if (r.signature_path) block(
       imgUrls[r.signature_path] ? h("img", { class: "rsig", src: imgUrls[r.signature_path], alt: "" }) : h("div", { class: "rmissing", text: "תמונת החתימה לא זמינה" }),
-      h("p", { class: "rtext", text: "נחתם על ידי " + (r.signed_name || "לא צוין") + " בתאריך " + fmtDT(r.signed_at) + ". מועד החתימה נרשם על ידי השרת." }));
+      h("p", { class: "rtext", text: "נחתם על ידי " + (r.signed_name || "לא צוין") + " בתאריך " + fmtDT(r.signed_at) + ". מועד החתימה נרשם על ידי השרת." +
+        (r.signed_remote ? " החתימה ניתנה מרחוק, דרך קישור אישי" + (link ? " שנוצר על ידי " + (link.created_by_name || "הצוות") + " בתאריך " + fmtDT(link.created_at) +
+          (link.ip ? ". כתובת ה-IP של החותם: " + link.ip : "") : "") + "." : "") }));
     else text("", r.approved ? "הרוכש אישר את התיקונים (סומן על ידי הצוות, ללא חתימה כללית)." : "אין חתימה כללית.");
     if (hist.length) {
       pending = "היסטוריית שינויים";
@@ -599,7 +658,12 @@ if (window.top !== window.self) { document.documentElement.hidden = true; throw 
       return sb.storage.from(BUCKET).download(p).then(function (res) { if (!res.error && res.data) { map[p] = URL.createObjectURL(res.data); made.push(map[p]); } });
     })).then(function () {
       return sb.from("repairs_history").select("id, action, changed_at, changed_by_name, row_data").eq("repair_id", r.id).order("id", { ascending: true });
-    }).then(function (hr) { return reportToPdf(buildReport(r, historyItems(hr.data), map)); })
+    }).then(function (hr) {
+      var hist = historyItems(hr.data);
+      if (!r.signed_remote) return reportToPdf(buildReport(r, hist, map));
+      return sb.from("approval_links").select("created_at, created_by_name, used_at, ip").eq("repair_id", r.id).not("used_at", "is", null).order("used_at", { ascending: false }).limit(1)
+        .then(function (lr) { return reportToPdf(buildReport(r, hist, map, lr.data && lr.data[0])); });
+    })
       .then(function (doc) { doc.save("bedek-" + (r.apartment || "").replace(/[^0-9A-Za-z\u0590-\u05FF]+/g, "-").slice(0, 40) + "-" + r.opened_on + ".pdf"); })
       .catch(function () { msg("err", "הפקת ה-PDF נכשלה. נסו שוב."); })
       .then(function () { made.forEach(function (u) { URL.revokeObjectURL(u); }); btn.disabled = false; btn.textContent = "ייצוא PDF"; });
@@ -727,13 +791,14 @@ if (window.top !== window.self) { document.documentElement.hidden = true; throw 
             ((it.photos_before || []).length + (it.photos_after || []).length) ? "תמונות: " + ((it.photos_before || []).length + (it.photos_after || []).length) : ""].filter(Boolean).join(" | ");
         }).join("\n"), "מספר תיקונים": itemsOf(r).length,
         "נימוק (לא באחריותנו)": r.not_ours_reason || "", "הרוכש אישר": r.approved ? "כן" : "לא", "חתימה כללית: שם החותם": r.signed_name || "",
-        "חתימה כללית: מועד": r.signed_at ? new Date(r.signed_at).toLocaleString("he-IL") : "", "הערות": r.notes, "תמונות לפני": r.photos_before.length, "תמונות אחרי": r.photos_after.length,
+        "חתימה כללית: מועד": r.signed_at ? new Date(r.signed_at).toLocaleString("he-IL") : "",
+        "חתימה כללית: אופן": r.signature_path ? (r.signed_remote ? "מרחוק, דרך קישור" : "במקום") : "", "הערות": r.notes, "תמונות לפני": r.photos_before.length, "תמונות אחרי": r.photos_after.length,
         "נפתחה על ידי": r.created_by_name, "עודכנה על ידי": r.updated_by_name, "עודכנה בתאריך": new Date(r.updated_at).toLocaleString("he-IL")
       };
     });
     if (!data.length) return;
     var ws = XLSX.utils.json_to_sheet(data);
-    ws["!cols"] = [12, 9, 16, 18, 18, 40, 12, 70, 8, 30, 10, 16, 18, 30, 10, 10, 16, 16, 18].map(function (w) { return { wch: w }; });
+    ws["!cols"] = [12, 9, 16, 18, 18, 40, 12, 70, 8, 30, 10, 16, 18, 16, 30, 10, 10, 16, 16, 18].map(function (w) { return { wch: w }; });
     var wb = XLSX.utils.book_new();
     wb.Workbook = { Views: [{ RTL: true }] };
     XLSX.utils.book_append_sheet(wb, ws, "קריאות");

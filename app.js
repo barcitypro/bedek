@@ -313,7 +313,7 @@ if (window.top !== window.self) { document.documentElement.hidden = true; throw 
     $("remoteBox").hidden = false; $("remoteRevoke").hidden = true; $("remoteCreate").disabled = editing.isNew;
     $("remoteCreate").textContent = "יצירת קישור לאישור מרחוק";
     if (editing.isNew) return remoteState("אפשר לשלוח ללקוח קישור לאישור וחתימה מהטלפון שלו. קודם שומרים את הקריאה, ואז פותחים אותה שוב ויוצרים קישור.", "");
-    remoteState("אפשר לשלוח ללקוח קישור אישי. הוא יראה את התיקונים כפי שנשמרו ויחתום מהטלפון שלו. שמרו שינויים לפני יצירת הקישור.", "");
+    remoteState("אפשר לשלוח ללקוח קישור אישי. הוא יראה רק את הקריאה הזאת, כפי שנשמרה, ויחתום מהטלפון שלו ליד כל תיקון וגם חתימה כללית. שמרו שינויים לפני יצירת הקישור.", "");
     if (me.user_id === "demo") return;
     sb.from("approval_links").select("created_at, created_by_name, expires_at").eq("repair_id", id).is("used_at", null).is("revoked_at", null)
       .gt("expires_at", new Date().toISOString()).order("created_at", { ascending: false }).limit(1).then(function (r) {
@@ -397,7 +397,7 @@ if (window.top !== window.self) { document.documentElement.hidden = true; throw 
 
   // ---------- repairs inside a call (each with its own customer signature) ----------
   function itemsOf(r) { return r && Array.isArray(r.items) ? r.items : []; }
-  function sigText(name, at) { return "נחתם על ידי " + (name || "לא צוין") + (at ? " בתאריך " + fmtDT(at) : ""); }
+  function sigText(name, at, remote) { return "נחתם על ידי " + (name || "לא צוין") + (at ? " בתאריך " + fmtDT(at) : "") + (remote ? " · נחתם מרחוק דרך קישור אישי" : ""); }
   function renumberItems() { editing.itemUi.forEach(function (ui, i) { ui.num.textContent = "תיקון " + (i + 1); }); $("itemsEmpty").hidden = editing.itemUi.length > 0; }
   function addItemCard(it) {
     var isSigned = !!it.signature_path, locked = isSigned && me.role !== "admin";   // a signed repair is frozen for everyone but an admin
@@ -420,9 +420,9 @@ if (window.top !== window.self) { document.documentElement.hidden = true; throw 
       ui.pad = null; ui.name = null;
       if (it.signature_path) {
         var img = h("img", { class: "isigimg", alt: "חתימת הלקוח" }), path = it.signature_path;
-        sigBox.appendChild(img); sigBox.appendChild(h("div", { class: "stamp", text: sigText(it.signed_name, it.signed_at) }));
+        sigBox.appendChild(img); sigBox.appendChild(h("div", { class: "stamp", text: sigText(it.signed_name, it.signed_at, it.signed_remote) }));
         if (me.role === "admin") sigBox.appendChild(h("button", { class: "btn small danger", type: "button", text: "הסרת החתימה", onclick: function () {
-          it.signature_path = null; it.signed_name = ""; it.signed_at = null; drawSigArea();
+          it.signature_path = null; it.signed_name = ""; it.signed_at = null; it.signed_remote = false; drawSigArea();
         } }));
         signed([path]).then(function () { if (urls[path]) img.src = urls[path]; });
       } else {
@@ -553,7 +553,7 @@ if (window.top !== window.self) { document.documentElement.hidden = true; throw 
     }
     var st = STATUS[r.status] ? r.status : "open";
     block(h("div", { class: "rhead" },
-      h("img", { src: "logo.png?v=12", alt: "" }),
+      h("img", { src: "logo.png?v=13", alt: "" }),
       h("div", { class: "rtitle" }, h("div", { class: "rname", text: "מחלקת בדק סיטי פרוייקטים" }), h("div", { class: "rdoc", text: "דוח קריאת שירות" }),
         h("div", { class: "rmeta", text: "הופק בתאריך " + fmtDT(new Date().toISOString()) + (me ? " על ידי " + (me.full_name || me.email) : "") })),
       h("span", { class: "pill " + st, text: STATUS[st] })));
@@ -570,7 +570,7 @@ if (window.top !== window.self) { document.documentElement.hidden = true; throw 
         var sigEl = it.signature_path
           ? h("div", { class: "risig" },
               imgUrls[it.signature_path] ? h("img", { class: "rsig", src: imgUrls[it.signature_path], alt: "" }) : h("div", { class: "rmissing", text: "תמונת החתימה לא זמינה" }),
-              h("div", { class: "rk", text: "חתימת הלקוח על תיקון זה: " + sigText(it.signed_name, it.signed_at) }))
+              h("div", { class: "rk", text: "חתימת הלקוח על תיקון זה: " + sigText(it.signed_name, it.signed_at, it.signed_remote) }))
           : h("div", { class: "rk", text: "הלקוח לא חתם על תיקון זה." });
         block(h("div", { class: "ritem" },
           h("div", { class: "rititle", text: "תיקון " + (i + 1) + (it.title ? ": " + it.title : "") }),
@@ -787,7 +787,7 @@ if (window.top !== window.self) { document.documentElement.hidden = true; throw 
         "תאריך פתיחה": fmtDate(r.opened_on), "סטטוס": STATUS[r.status] || "", "פרויקט": r.project, "בניין ודירה": r.apartment, "רוכש": r.buyer,
         "תיאור הקריאה": r.issue, "תאריך תיקון אחרון": fmtDate(r.fix_date),
         "תיקונים": itemsOf(r).map(function (it, i) {
-          return (i + 1) + ". " + [it.title, it.fix_desc, fmtDate(it.fix_date), it.fixer, it.signature_path ? "נחתם: " + (it.signed_name || "") + " " + fmtDT(it.signed_at) : "לא נחתם",
+          return (i + 1) + ". " + [it.title, it.fix_desc, fmtDate(it.fix_date), it.fixer, it.signature_path ? "נחתם" + (it.signed_remote ? " מרחוק" : "") + ": " + (it.signed_name || "") + " " + fmtDT(it.signed_at) : "לא נחתם",
             ((it.photos_before || []).length + (it.photos_after || []).length) ? "תמונות: " + ((it.photos_before || []).length + (it.photos_after || []).length) : ""].filter(Boolean).join(" | ");
         }).join("\n"), "מספר תיקונים": itemsOf(r).length,
         "נימוק (לא באחריותנו)": r.not_ours_reason || "", "הרוכש אישר": r.approved ? "כן" : "לא", "חתימה כללית: שם החותם": r.signed_name || "",

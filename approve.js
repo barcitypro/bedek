@@ -36,24 +36,28 @@ if (window.top !== window.self) { document.documentElement.hidden = true; throw 
   }
 
   // ---------- signature pad: dark ink on white ----------
-  var canvas = $("aPad"), ctx = canvas.getContext("2d"), dirty = false, drawing = false;
-  function resetPad() {
-    var dpr = Math.min(window.devicePixelRatio || 1, 2), w = canvas.clientWidth || 560, hh = canvas.clientHeight || 160;
-    canvas.width = Math.round(w * dpr); canvas.height = Math.round(hh * dpr);
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, w, hh);
-    ctx.strokeStyle = "#111"; ctx.lineWidth = 2.2; ctx.lineCap = "round"; ctx.lineJoin = "round";
-    dirty = false;
+  function makePad(canvas) {
+    var ctx = canvas.getContext("2d"), dirty = false, drawing = false;
+    function reset() {
+      var dpr = Math.min(window.devicePixelRatio || 1, 2), w = canvas.clientWidth || 560, hh = canvas.clientHeight || 160;
+      canvas.width = Math.round(w * dpr); canvas.height = Math.round(hh * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, w, hh);
+      ctx.strokeStyle = "#111"; ctx.lineWidth = 2.2; ctx.lineCap = "round"; ctx.lineJoin = "round";
+      dirty = false;
+    }
+    function pos(e) { var r = canvas.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; }
+    canvas.addEventListener("pointerdown", function (e) {
+      e.preventDefault(); try { canvas.setPointerCapture(e.pointerId); } catch (x) {}
+      var p = pos(e); drawing = true; dirty = true;
+      ctx.beginPath(); ctx.moveTo(p[0], p[1]); ctx.lineTo(p[0] + 0.1, p[1] + 0.1); ctx.stroke();
+    });
+    canvas.addEventListener("pointermove", function (e) { if (!drawing) return; var p = pos(e); ctx.lineTo(p[0], p[1]); ctx.stroke(); });
+    ["pointerup", "pointercancel", "pointerleave"].forEach(function (n) { canvas.addEventListener(n, function () { drawing = false; }); });
+    return { reset: reset, isDirty: function () { return dirty; }, data: function () { return canvas.toDataURL("image/png"); } };
   }
-  function pos(e) { var r = canvas.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; }
-  canvas.addEventListener("pointerdown", function (e) {
-    e.preventDefault(); try { canvas.setPointerCapture(e.pointerId); } catch (x) {}
-    var p = pos(e); drawing = true; dirty = true;
-    ctx.beginPath(); ctx.moveTo(p[0], p[1]); ctx.lineTo(p[0] + 0.1, p[1] + 0.1); ctx.stroke();
-  });
-  canvas.addEventListener("pointermove", function (e) { if (!drawing) return; var p = pos(e); ctx.lineTo(p[0], p[1]); ctx.stroke(); });
-  ["pointerup", "pointercancel", "pointerleave"].forEach(function (n) { canvas.addEventListener(n, function () { drawing = false; }); });
-  $("aClear").addEventListener("click", resetPad);
+  var mainPad = makePad($("aPad")), itemPads = [];   // itemPads: one per repair that is still unsigned
+  $("aClear").addEventListener("click", mainPad.reset);
 
   // ---------- the call ----------
   function kv(label, value) { return h("div", { class: "rkv" }, h("span", { class: "rk", text: label }), h("span", { class: "rv", text: value || "—" })); }
@@ -75,19 +79,27 @@ if (window.top !== window.self) { document.documentElement.hidden = true; throw 
     is.appendChild(h("div", { class: "rk", text: "תיאור הקריאה" })); is.appendChild(h("p", { class: "rtext", text: c.issue || "—" }));
     var gb = strip("תמונות כלליות: לפני", c.photos_before), ga = strip("תמונות כלליות: אחרי", c.photos_after);
     if (gb) is.appendChild(gb); if (ga) is.appendChild(ga);
-    var box = $("aItems"); box.textContent = "";
+    var box = $("aItems"); box.textContent = ""; itemPads = [];
     (c.items || []).forEach(function (it, i) {
+      var sig;
+      if (it.signed) sig = h("div", { class: "stamp", text: "תיקון זה כבר נחתם." });
+      else {
+        var cv = h("canvas", { class: "sigpad small", "aria-label": "משטח חתימה לתיקון " + (i + 1) }), clear = h("button", { class: "btn small", type: "button", text: "ניקוי החתימה" });
+        var pad = makePad(cv); clear.addEventListener("click", pad.reset);
+        itemPads.push({ id: it.id, pad: pad });
+        sig = h("div", { class: "sig" }, h("div", { class: "title", text: "חתימה על תיקון זה" }), cv, clear);
+      }
       box.appendChild(h("div", { class: "item" },
-        h("div", { class: "ihead" }, h("strong", { text: "תיקון " + (i + 1) + (it.title ? ": " + it.title : "") })),
+        h("div", { class: "ihead" }, h("strong", { text: "תיקון " + (i + 1) + (it.title ? ": " + it.title : "") }), it.signed ? h("span", { class: "pill done", text: "נחתם" }) : null),
         h("div", null, h("div", { class: "rk", text: "מה תוקן" }), h("p", { class: "rtext", text: it.fix_desc || "טרם פורט" })),
-        h("div", { class: "rgrid" }, kv("תאריך התיקון", fmtDate(it.fix_date)), kv("מי תיקן", it.fixer)),
-        strip("תמונות לפני התיקון", it.photos_before), strip("תמונות אחרי התיקון", it.photos_after)));
+        it.fix_date ? h("div", { class: "rgrid" }, kv("תאריך התיקון", fmtDate(it.fix_date))) : null,
+        strip("תמונות לפני התיקון", it.photos_before), strip("תמונות אחרי התיקון", it.photos_after), sig));
     });
     if (!(c.items || []).length) box.appendChild(h("div", { class: "empty" }, h("strong", { text: "לא פורטו תיקונים בקריאה זו" })));
     $("aName").value = c.buyer || "";
     $("aExp").textContent = expires ? "הקישור בתוקף עד " + fmtDate(expires.slice(0, 10)) + ". מועד החתימה נרשם אוטומטית." : "";
     show("aMain");
-    resetPad();
+    mainPad.reset(); itemPads.forEach(function (p) { p.pad.reset(); });   // after the page is visible, so each pad can measure itself
   }
 
   var token = location.hash.replace(/^#/, "");
@@ -97,16 +109,19 @@ if (window.top !== window.self) { document.documentElement.hidden = true; throw 
     ev.preventDefault();
     var name = $("aName").value.trim();
     if (!name) return err("חסר שם מלא.");
-    if (!dirty) return err("חסרה חתימה. חתמו בתוך המסגרת.");
+    var signedItems = itemPads.filter(function (p) { return p.pad.isDirty(); }), general = mainPad.isDirty();
+    if (!general && !signedItems.length) return err("חסרה חתימה. חתמו ליד התיקונים שבוצעו, או חתימה כללית בתחתית הדף.");
     if (!$("aAgree").checked) return err("כדי לאשר צריך לסמן את תיבת האישור.");
     err(""); $("aSend").disabled = true; $("aSend").textContent = "שולח…";
-    var done = function (n, at) { message("תודה, האישור התקבל", "נחתם על ידי " + n + " בתאריך " + fmtDT(at) + ". אפשר לסגור את הדף."); };
+    var what = [signedItems.length ? (signedItems.length === 1 ? "חתימה על תיקון אחד" : "חתימות על " + signedItems.length + " תיקונים") : "", general ? "חתימה כללית" : ""].filter(Boolean).join(" ו");
+    var done = function (n, at) { message("תודה, האישור התקבל", "התקבלה " + what + ". נחתם על ידי " + n + " בתאריך " + fmtDT(at) + ". אפשר לסגור את הדף."); };
     if (demo) return done(name, new Date().toISOString());
-    call({ action: "sign", token: token, name: name, signature: canvas.toDataURL("image/png") }).then(function (r) {
+    call({ action: "sign", token: token, name: name, signature: general ? mainPad.data() : "", items: signedItems.map(function (p) { return { id: p.id, signature: p.pad.data() }; }) }).then(function (r) {
       if (r.ok) return done(r.body.signed_name || name, r.body.signed_at);
       var e = r.body.error;
       if (e === "signed") return signedMsg("", "");
       if (STATES[e]) return message(STATES[e][0], STATES[e][1]);
+      if (e === "changed") return message("פרטי הקריאה התעדכנו", "רעננו את הדף כדי לראות את הפרטים המעודכנים, ואז חתמו שוב.");
       throw new Error(e);
     }).catch(function () {
       err("השליחה נכשלה. בדקו את החיבור לאינטרנט ונסו שוב.");
@@ -117,8 +132,8 @@ if (window.top !== window.self) { document.documentElement.hidden = true; throw 
   if (demo) {
     return render({ project: "פרויקט לדוגמה", apartment: "בניין 2, דירה 14", buyer: "ישראל ישראלי", opened_on: "2026-11-10", issue: "כמה ליקויים שדווחו אחרי הכניסה לדירה",
       photos_before: [], photos_after: [],
-      items: [{ title: "נזילה מתחת לכיור במטבח", fix_desc: "הוחלף סיפון ואטם", fix_date: "2026-11-14", fixer: "אינסטלטור", photos_before: [], photos_after: [] },
-              { title: "סדק בטיח בחדר השינה", fix_desc: "תוקן הסדק ונצבע הקיר", fix_date: "2026-11-16", fixer: "צבעי", photos_before: [], photos_after: [] }] }, "2026-12-09T00:00:00Z");
+      items: [{ id: "d1", title: "נזילה מתחת לכיור במטבח", fix_desc: "הוחלף סיפון ואטם", fix_date: "2026-11-14", signed: true, photos_before: [], photos_after: [] },
+              { id: "d2", title: "סדק בטיח בחדר השינה", fix_desc: "תוקן הסדק ונצבע הקיר", fix_date: "2026-11-16", signed: false, photos_before: [], photos_after: [] }] }, "2026-12-09T00:00:00Z");
   }
   if (!/^[A-Za-z0-9_-]{43}$/.test(token)) return message(STATES.not_found[0], STATES.not_found[1]);
   call({ action: "view", token: token }).then(function (r) {

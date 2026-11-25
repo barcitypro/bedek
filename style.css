@@ -213,3 +213,5 @@ dialog form, dialog .body { display: flex; flex-direction: column; gap: 14px; pa
 .rititle { font-weight: 700; font-size: 16px; margin-bottom: 6px; }
 .risig { margin-top: 6px; }
 .ritem .rsig { height: 80px; }
+
+.item .photos { align-self: stretch; }

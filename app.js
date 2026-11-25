@@ -299,7 +299,7 @@ if (window.top !== window.self) { document.documentElement.hidden = true; throw 
 
   // ---------- remote approval: a personal link the customer opens and signs on their own phone ----------
   // Only a hash of the link's secret is stored, so the link itself can be shown once, right after it is created.
-  var APPROVE_URL = new URL("approve.html", location.href.split("#")[0].split("?")[0]).href;
+  var APPROVE_URL = "https://barcitypro.github.io/ishur/";   // the customer's page lives on its own site, apart from the staff app
   function remoteState(text, link) {
     $("remoteInfo").textContent = text;
     $("remoteLinkRow").hidden = !link;
@@ -313,13 +313,13 @@ if (window.top !== window.self) { document.documentElement.hidden = true; throw 
     $("remoteBox").hidden = false; $("remoteRevoke").hidden = true; $("remoteCreate").disabled = editing.isNew;
     $("remoteCreate").textContent = "יצירת קישור לאישור מרחוק";
     if (editing.isNew) return remoteState("אפשר לשלוח ללקוח קישור לאישור וחתימה מהטלפון שלו. קודם שומרים את הקריאה, ואז פותחים אותה שוב ויוצרים קישור.", "");
-    remoteState("אפשר לשלוח ללקוח קישור אישי. הוא יראה רק את הקריאה הזאת, כפי שנשמרה, ויחתום מהטלפון שלו ליד כל תיקון וגם חתימה כללית. שמרו שינויים לפני יצירת הקישור.", "");
+    remoteState("אפשר לשלוח ללקוח קישור אישי. הוא יראה רק את הקריאה הזאת, כפי שנשמרה, ויחתום מהטלפון שלו ליד כל תיקון וגם חתימה כללית. שמרו שינויים לפני יצירת הקישור. הקישור תקף לשעה אחת מרגע היצירה.", "");
     if (me.user_id === "demo") return;
     sb.from("approval_links").select("created_at, created_by_name, expires_at").eq("repair_id", id).is("used_at", null).is("revoked_at", null)
       .gt("expires_at", new Date().toISOString()).order("created_at", { ascending: false }).limit(1).then(function (r) {
         if (!editing || editing.id !== id || r.error || !r.data || !r.data.length || !$("remoteLinkRow").hidden) return;
         var l = r.data[0];
-        remoteState("קישור פעיל נוצר ב-" + fmtDT(l.created_at) + (l.created_by_name ? " על ידי " + l.created_by_name : "") + ", בתוקף עד " + fmtDate(l.expires_at.slice(0, 10)) +
+        remoteState("קישור פעיל נוצר ב-" + fmtDT(l.created_at) + (l.created_by_name ? " על ידי " + l.created_by_name : "") + ", בתוקף עד " + fmtDT(l.expires_at) +
           ". הלקוח עדיין לא חתם. הקישור עצמו לא נשמר במערכת: כדי לשלוח שוב, צרו קישור חדש (הקודם יבוטל).", "");
         $("remoteCreate").textContent = "יצירת קישור חדש"; $("remoteRevoke").hidden = false;
       });
@@ -328,11 +328,11 @@ if (window.top !== window.self) { document.documentElement.hidden = true; throw 
     if (!editing || editing.isNew) return;
     var id = editing.id, btn = $("remoteCreate");
     msg("err", ""); btn.disabled = true;
-    var p = me.user_id === "demo" ? Promise.resolve({ token: "DEMO-ONLY-0000000000000000000000000000000000", expires_at: new Date(Date.now() + 14 * 864e5).toISOString() })
+    var p = me.user_id === "demo" ? Promise.resolve({ token: "DEMO-ONLY-0000000000000000000000000000000000", expires_at: new Date(Date.now() + 36e5).toISOString() })
       : fn({ action: "create", repair_id: id }, "remote-approval");
     p.then(function (res) {
       if (!editing || editing.id !== id) return;
-      remoteState("הקישור מוכן ובתוקף עד " + fmtDate(res.expires_at.slice(0, 10)) + ". שלחו אותו ללקוח עכשיו: מטעמי אבטחה הוא לא יוצג שוב אחרי סגירת החלון. יצירת קישור חדש מבטלת את הקודם.", APPROVE_URL + "#" + res.token);
+      remoteState("הקישור מוכן ובתוקף לשעה אחת, עד " + fmtDT(res.expires_at) + ". שלחו אותו ללקוח עכשיו: מטעמי אבטחה הוא לא יוצג שוב אחרי סגירת החלון. יצירת קישור חדש מבטלת את הקודם.", APPROVE_URL + "#" + res.token);
       btn.textContent = "יצירת קישור חדש"; $("remoteRevoke").hidden = false;
     }, function (e) { msg("err", e.message); }).then(function () { btn.disabled = false; });
   });
@@ -351,6 +351,24 @@ if (window.top !== window.self) { document.documentElement.hidden = true; throw 
     if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(inp.value).then(ok, function () { inp.select(); });
     else { inp.select(); try { document.execCommand("copy"); ok(); } catch (x) {} }
   });
+
+  // ---------- log of every use of a remote-approval link (the owner only) ----------
+  var RKIND = { create: "נוצר קישור", revoke: "הקישור בוטל", view: "הקישור נפתח", sign: "ניסיון חתימה" };
+  var RRES = { open: "הוצגה הקריאה", ok: "נחתם", signed: "הקישור כבר נוצל", expired: "הקישור פג", revoked: "הקישור מבוטל", signed_elsewhere: "הקריאה כבר חתומה", changed: "נדחה, הקריאה השתנתה", error: "שגיאה" };
+  function loadRemoteLog(id) {
+    $("rlog").hidden = true; $("rlog").open = false; $("rlogList").textContent = "";
+    if (!(me.is_owner && me.role === "admin")) return;
+    sb.from("approval_access").select("at, kind, result, actor, ip, device").eq("repair_id", id).order("at", { ascending: false }).limit(200).then(function (r) {
+      if (r.error || !r.data || !r.data.length || !editing || editing.id !== id) return;
+      r.data.forEach(function (e) {
+        var ul = h("ul");
+        ul.appendChild(h("li", { text: [e.actor, e.ip ? "IP " + e.ip : "", e.device ? deviceName(e.device) : ""].filter(Boolean).join(" · ") || "ללא פרטים" }));
+        $("rlogList").appendChild(h("div", { class: "ev" }, h("div", { class: "hd", text: fmtDT(e.at) + " · " + (RKIND[e.kind] || e.kind) + (RRES[e.result] ? ": " + RRES[e.result] : "") }), ul));
+      });
+      $("rlogSum").textContent = "יומן אישור מרחוק (" + r.data.length + "), גלוי רק לבעל המערכת";
+      $("rlog").hidden = false;
+    });
+  }
 
   // ---------- photo strip for one repair ----------
   function photoStrip(list, label, locked, prefix) {
@@ -553,7 +571,7 @@ if (window.top !== window.self) { document.documentElement.hidden = true; throw 
     }
     var st = STATUS[r.status] ? r.status : "open";
     block(h("div", { class: "rhead" },
-      h("img", { src: "logo.png?v=13", alt: "" }),
+      h("img", { src: "logo.png?v=14", alt: "" }),
       h("div", { class: "rtitle" }, h("div", { class: "rname", text: "מחלקת בדק סיטי פרוייקטים" }), h("div", { class: "rdoc", text: "דוח קריאת שירות" }),
         h("div", { class: "rmeta", text: "הופק בתאריך " + fmtDT(new Date().toISOString()) + (me ? " על ידי " + (me.full_name || me.email) : "") })),
       h("span", { class: "pill " + st, text: STATUS[st] })));
@@ -698,6 +716,7 @@ if (window.top !== window.self) { document.documentElement.hidden = true; throw 
     }
     $("stamp").textContent = stamp;
     if (r) loadHistory(r.id); else { $("hist").hidden = true; $("histList").textContent = ""; }
+    if (r && me.user_id !== "demo") loadRemoteLog(r.id); else $("rlog").hidden = true;
     renderPhotos("before"); renderPhotos("after");
     $("dlg").showModal();
     renderSig();   // after the dialog is visible, so the signature pads can measure themselves
